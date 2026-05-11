@@ -1,0 +1,146 @@
+from __future__ import annotations
+
+import os
+import sys
+from typing import Any, Dict, List
+
+import cv2
+
+from config.loader import load_config
+from camera.camera_handler import create_camera
+from preprocessing.image_preprocessor import ImagePreprocessor
+from detection.hybrid_detector import HybridDetector
+from detection.types import detections_to_dicts
+from postprocessing.post_processor import PostProcessor
+from postprocessing.board_mapper import BoardMapper
+from output.formatter import export_output
+from output.visualizer import Visualizer
+from utils.helpers import now_ms
+from utils.logger import setup_logger
+from utils.validators import validate_detections
+
+
+def _resolve_path(base_dir: str, maybe_rel: str) -> str:
+    if os.path.isabs(maybe_rel):
+        return maybe_rel
+    return os.path.normpath(os.path.join(base_dir, maybe_rel))
+
+
+def main() -> int:
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    cfg_path = os.environ.get("AMR_VISION_CONFIG", os.path.join(base_dir, "config", "config.yaml"))
+    cfg = load_config(cfg_path)
+
+    log_dir = _resolve_path(base_dir, str((cfg.get("app") or {}).get("log_dir", "logs")))
+    results_dir = _resolve_path(base_dir, str((cfg.get("app") or {}).get("results_dir", "results")))
+    os.makedirs(results_dir, exist_ok=True)
+
+    logger = setup_logger(log_dir=log_dir)
+    logger.info(f"config: {cfg_path}")
+
+    camera = create_camera(cfg.get("camera") or {})
+    pre_cfg = cfg.get("preprocess") or {}
+    pre = ImagePreprocessor(pre_cfg) if bool(pre_cfg.get("enabled", True)) else None
+
+    detector = HybridDetector(cfg.get("detection") or {})
+    detector.warmup()
+    logger.info("detector warmed up")
+
+    post_cfg = cfg.get("postprocess") or {}
+    post = PostProcessor(post_cfg) if bool(post_cfg.get("enabled", True)) else None
+
+    map_cfg = cfg.get("mapping") or {}
+    mapper = BoardMapper(map_cfg) if bool(map_cfg.get("enabled", False)) else None
+
+    out_cfg = cfg.get("output") or {}
+    vis_cfg = cfg.get("visualization") or {}
+    visualizer = Visualizer(vis_cfg) if bool(vis_cfg.get("enabled", True)) else None
+
+    show_window = bool(vis_cfg.get("show_window", True))
+    window_name = str(vis_cfg.get("window_name", "AMR Vision V1"))
+    if show_window and visualizer is not None:
+        cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+
+    logger.info("pipeline started (press ESC to quit)")
+
+    try:
+        while True:
+            ok, frame = camera.read()
+            if not ok or frame is None:
+                continue
+
+            ts_ms = now_ms()
+            if pre is not None:
+                frame = pre.process(frame)
+
+            dets = detector.detect(frame)
+            if post is not None:
+                dets = post.process(dets, frame_shape_hw=frame.shape[:2])
+
+            det_dicts = detections_to_dicts(dets)
+
+            # Optional mapping to grid/chess cell
+            if mapper is not None:
+                h, w = frame.shape[:2]
+                for d in det_dicts:
+                    x1, y1, x2, y2 = d["bbox_xyxy"]
+                    cx = int((x1 + x2) / 2)
+                    cy = int((y1 + y2) / 2)
+                    d["cell"] = mapper.pixel_to_cell(cx, cy, frame_w=w, frame_h=h)
+
+            errs = validate_detections(det_dicts)
+            if errs:
+                logger.warning(f"invalid detections: {errs[:3]}")
+
+            payload = {
+                "timestamp_ms": ts_ms,
+                "image": {"width": int(frame.shape[1]), "height": int(frame.shape[0])},
+                "detections": det_dicts,
+            }
+
+            if bool(out_cfg.get("write_outputs", True)):
+                export_output(str(out_cfg.get("format", "json")), out_cfg, payload)
+
+            annotated = frame
+            if visualizer is not None:
+                grid_overlay = None
+                if bool(vis_cfg.get("draw_grid", True)) and (cfg.get("mapping") or {}).get("grid"):
+                    g = (cfg.get("mapping") or {}).get("grid") or {}
+                    labels = (g.get("labels") or {}) if isinstance(g, dict) else {}
+                    grid_overlay = {
+                        "rows": int(g.get("rows", 8)),
+                        "cols": int(g.get("cols", 8)),
+                        "col_labels": str(labels.get("cols", "ABCDEFGH")),
+                        "row_labels": str(labels.get("rows", "87654321")),
+                    }
+                annotated = visualizer.draw(frame, det_dicts, grid=grid_overlay)
+
+                img_path = _resolve_path(base_dir, str(out_cfg.get("image_path", "results/annotated.jpg")))
+                visualizer.save(img_path, annotated)
+
+                if show_window:
+                    key = visualizer.show(annotated)
+                    if key == 27:
+                        break
+            elif show_window:
+                cv2.imshow(window_name, annotated)
+                if (cv2.waitKey(1) & 0xFF) == 27:
+                    break
+
+    finally:
+        try:
+            camera.close()
+        except Exception:
+            pass
+        try:
+            cv2.destroyAllWindows()
+        except Exception:
+            pass
+
+    logger.info("shutdown complete")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+

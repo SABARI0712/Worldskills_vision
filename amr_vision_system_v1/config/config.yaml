@@ -1,0 +1,92 @@
+app:
+  name: amr_vision_system_v1
+  log_dir: logs
+  results_dir: results
+
+camera:
+  source: usb            # usb | ros
+  usb:
+    index: 0
+    width: null          # set e.g. 640
+    height: null         # set e.g. 480
+    fps: null
+    reconnect: true
+    reconnect_wait_s: 0.5
+  ros:
+    topic: /camera/image_raw
+    encoding: bgr8
+    spin_timeout_s: 0.01
+
+preprocess:
+  enabled: true
+  resize:
+    enabled: true
+    width: 640
+    height: 480
+    keep_aspect: false
+  clahe:
+    enabled: true
+    clip_limit: 2.0
+    tile_grid_size: [8, 8]
+  denoise:
+    enabled: false
+    h: 5
+    h_color: 5
+    template_window_size: 7
+    search_window_size: 21
+
+detection:
+  mode: hybrid           # yolo | classical | hybrid
+  confidence: 0.5
+
+  yolo:
+    enabled: true
+    weights_path: models/best.pt
+    imgsz: 640
+    device: null         # null lets ultralytics choose
+    iou: 0.45
+    max_det: 50
+
+  classical:
+    enabled: true
+    qr:
+      enabled: true
+    color:
+      enabled: false
+      min_area: 2500
+      hsv_ranges:
+        # Example range; tune per lighting
+        red1: [[0, 120, 80], [10, 255, 255]]
+        red2: [[170, 120, 80], [180, 255, 255]]
+    contour:
+      enabled: false
+      min_area: 2000
+
+postprocess:
+  enabled: true
+  min_confidence: 0.5
+
+mapping:
+  enabled: false
+  grid:
+    rows: 8
+    cols: 8
+    origin: top_left      # top_left
+    labels:
+      cols: ABCDEFGH
+      rows: "87654321"
+
+output:
+  format: json           # json | csv
+  write_outputs: true
+  json_path: results/output.json
+  csv_path: results/output.csv
+  image_path: results/annotated.jpg
+
+visualization:
+  enabled: true
+  show_window: true
+  window_name: AMR Vision V1
+  draw_grid: true
+  draw_labels: true
+  draw_confidence: true
