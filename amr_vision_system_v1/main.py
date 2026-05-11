@@ -106,9 +106,11 @@ def main() -> int:
             }
 
             if bool(out_cfg.get("write_outputs", True)) and (include_empty_frames or det_dicts):
-                if output_format == "json" and not output_append:
+                if not output_append:
+                    # Buffer frames when not appending (for JSON/CSV)
                     output_history.append(payload)
                 else:
+                    # Write immediately in append mode (JSONL/CSV append)
                     export_output(output_format, out_cfg, payload)
 
             annotated = frame
@@ -148,7 +150,7 @@ def main() -> int:
         except Exception:
             pass
 
-        if bool(out_cfg.get("write_outputs", True)) and output_format == "json" and not output_append:
+        if bool(out_cfg.get("write_outputs", True)) and not output_append:
             if output_history:
                 export_output(output_format, out_cfg, output_history)
 

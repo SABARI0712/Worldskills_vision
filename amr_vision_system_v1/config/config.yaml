@@ -1,3 +1,4 @@
+
 app:
   name: amr_vision_system_v1
   log_dir: logs
@@ -37,7 +38,7 @@ preprocess:
 
 detection:
   mode: hybrid           # yolo | classical | hybrid
-  confidence: 0.9
+  confidence: 0.8
 
   yolo:
     enabled: true
@@ -55,11 +56,14 @@ detection:
       enabled: true
       min_area: 2500
       hsv_ranges:
-        # Example range; tune per lighting
-        red1: [[0, 120, 80], [10, 255, 255]]
-        red2: [[170, 120, 80], [180, 255, 255]]
-        green: [[50, 120, 80], [70, 255, 255]]
-        blue: [[100, 120, 80], [120, 255, 255]]
+        # Tuned HSV ranges from opencv/colour hsv,area/3_colour_hsv.py
+        red1: [[0, 120, 70], [10, 255, 255]]
+        red2: [[170, 120, 70], [180, 255, 255]]
+        green: [[36, 50, 70], [89, 255, 255]]
+        blue: [[94, 80, 2], [126, 255, 255]]
+        orange: [[10, 120, 80], [25, 255, 255]]
+        yellow: [[25, 120, 120], [35, 255, 255]]
+        black: [[0, 0, 0], [180, 255, 50]]
     contour:
       enabled: false
       min_area: 2000
@@ -69,7 +73,7 @@ postprocess:
   min_confidence: 0.5
 
 mapping:
-  enabled: false
+  enabled: true
   grid:
     rows: 8
     cols: 8

@@ -13,10 +13,7 @@ def export_output(fmt: str, cfg: Dict[str, Any], payload: Union[Dict[str, Any], 
         export_json(str(cfg.get("json_path", "results/output.json")), payload, append=append)
         return
     if fmt == "csv":
-        if isinstance(payload, dict):
-            export_csv(str(cfg.get("csv_path", "results/output.csv")), payload, append=append)
-        else:
-            raise ValueError("csv export only supports single-frame payloads")
+        export_csv(str(cfg.get("csv_path", "results/output.csv")), payload, append=append)
         return
     raise ValueError(f"unknown output format: {fmt}")
 
