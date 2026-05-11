@@ -53,6 +53,11 @@ def main() -> int:
     mapper = BoardMapper(map_cfg) if bool(map_cfg.get("enabled", False)) else None
 
     out_cfg = cfg.get("output") or {}
+    save_image = bool(out_cfg.get("save_image", False))
+    include_empty_frames = bool(out_cfg.get("include_empty_frames", True))
+    output_format = str(out_cfg.get("format", "json")).lower()
+    output_append = bool(out_cfg.get("append", False))
+    output_history: List[Dict[str, Any]] = []
     vis_cfg = cfg.get("visualization") or {}
     visualizer = Visualizer(vis_cfg) if bool(vis_cfg.get("enabled", True)) else None
 
@@ -96,10 +101,15 @@ def main() -> int:
                 "timestamp_ms": ts_ms,
                 "image": {"width": int(frame.shape[1]), "height": int(frame.shape[0])},
                 "detections": det_dicts,
+                "detection_count": len(det_dicts),
+                "detection_labels": [d["label"] for d in det_dicts],
             }
 
-            if bool(out_cfg.get("write_outputs", True)):
-                export_output(str(out_cfg.get("format", "json")), out_cfg, payload)
+            if bool(out_cfg.get("write_outputs", True)) and (include_empty_frames or det_dicts):
+                if output_format == "json" and not output_append:
+                    output_history.append(payload)
+                else:
+                    export_output(output_format, out_cfg, payload)
 
             annotated = frame
             if visualizer is not None:
@@ -115,8 +125,9 @@ def main() -> int:
                     }
                 annotated = visualizer.draw(frame, det_dicts, grid=grid_overlay)
 
-                img_path = _resolve_path(base_dir, str(out_cfg.get("image_path", "results/annotated.jpg")))
-                visualizer.save(img_path, annotated)
+                if save_image:
+                    img_path = _resolve_path(base_dir, str(out_cfg.get("image_path", "results/annotated.jpg")))
+                    visualizer.save(img_path, annotated)
 
                 if show_window:
                     key = visualizer.show(annotated)
@@ -136,6 +147,10 @@ def main() -> int:
             cv2.destroyAllWindows()
         except Exception:
             pass
+
+        if bool(out_cfg.get("write_outputs", True)) and output_format == "json" and not output_append:
+            if output_history:
+                export_output(output_format, out_cfg, output_history)
 
     logger.info("shutdown complete")
     return 0

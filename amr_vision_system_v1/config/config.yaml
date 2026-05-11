@@ -6,7 +6,7 @@ app:
 camera:
   source: usb            # usb | ros
   usb:
-    index: 0
+    index: 2
     width: null          # set e.g. 640
     height: null         # set e.g. 480
     fps: null
@@ -37,27 +37,29 @@ preprocess:
 
 detection:
   mode: hybrid           # yolo | classical | hybrid
-  confidence: 0.5
+  confidence: 0.9
 
   yolo:
     enabled: true
-    weights_path: models/best.pt
+    weights_path: /home/user/YOLO/runs/train33/weights/best.pt
     imgsz: 640
     device: null         # null lets ultralytics choose
     iou: 0.45
-    max_det: 50
+    max_det: 100
 
   classical:
     enabled: true
     qr:
       enabled: true
     color:
-      enabled: false
+      enabled: true
       min_area: 2500
       hsv_ranges:
         # Example range; tune per lighting
         red1: [[0, 120, 80], [10, 255, 255]]
         red2: [[170, 120, 80], [180, 255, 255]]
+        green: [[50, 120, 80], [70, 255, 255]]
+        blue: [[100, 120, 80], [120, 255, 255]]
     contour:
       enabled: false
       min_area: 2000
@@ -77,11 +79,17 @@ mapping:
       rows: "87654321"
 
 output:
-  format: json           # json | csv
+  format: csv       # json | csv
   write_outputs: true
+  # When append=true:
+  # - JSON output becomes JSON Lines (one JSON object per line / per frame)
+  # - CSV output appends rows (keeps full history)
+  append: false
+  include_empty_frames: false
   json_path: results/output.json
   csv_path: results/output.csv
   image_path: results/annotated.jpg
+  save_image: false      # set true only when you want per-frame annotated image writes
 
 visualization:
   enabled: true
