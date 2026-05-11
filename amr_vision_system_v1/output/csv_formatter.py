@@ -20,6 +20,7 @@ def export_csv(path: str, payload: Union[Dict[str, Any], List[Dict[str, Any]]], 
         raise ValueError("payload must be dict or list of dicts")
 
     fieldnames = [
+        "object_id",
         "timestamp_ms",
         "image_width",
         "image_height",
@@ -53,6 +54,7 @@ def export_csv(path: str, payload: Union[Dict[str, Any], List[Dict[str, Any]]], 
             for r in det_rows:
                 bbox = r.get("bbox_xyxy", [None, None, None, None])
                 row = {
+                    "object_id": r.get("id") or r.get("object_id"),
                     "timestamp_ms": ts,
                     "image_width": iw,
                     "image_height": ih,

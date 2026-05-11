@@ -34,7 +34,10 @@ class Visualizer:
                 label = str(d.get("label", "obj"))
                 conf = float(d.get("confidence", 0.0))
                 cell = d.get("cell", None)
+                obj_id = d.get("id") or d.get("object_id")
                 txt = label
+                if obj_id is not None:
+                    txt += f" #{obj_id}"
                 if self.draw_confidence:
                     txt += f" {conf:.2f}"
                 if cell:

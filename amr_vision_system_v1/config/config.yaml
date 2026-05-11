@@ -19,7 +19,7 @@ camera:
     spin_timeout_s: 0.01
 
 preprocess:
-  enabled: true
+  enabled: false
   resize:
     enabled: true
     width: 640
@@ -38,7 +38,7 @@ preprocess:
 
 detection:
   mode: hybrid           # yolo | classical | hybrid
-  confidence: 0.8
+  confidence: 0.90
 
   yolo:
     enabled: true
@@ -53,7 +53,7 @@ detection:
     qr:
       enabled: true
     color:
-      enabled: true
+      enabled: false
       min_area: 2500
       hsv_ranges:
         # Tuned HSV ranges from opencv/colour hsv,area/3_colour_hsv.py
@@ -99,6 +99,6 @@ visualization:
   enabled: true
   show_window: true
   window_name: AMR Vision V1
-  draw_grid: true
+  draw_grid: false
   draw_labels: true
   draw_confidence: true

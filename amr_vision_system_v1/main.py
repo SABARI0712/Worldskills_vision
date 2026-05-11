@@ -15,6 +15,10 @@ from postprocessing.post_processor import PostProcessor
 from postprocessing.board_mapper import BoardMapper
 from output.formatter import export_output
 from output.visualizer import Visualizer
+from fusion.detection_fuser import DetectionFuser
+from fusion.duplicate_resolver import DuplicateResolver
+from tracking.centroid_tracker import CentroidTracker
+from tracking.temporal_filter import TemporalFilter
 from utils.helpers import now_ms
 from utils.logger import setup_logger
 from utils.validators import validate_detections
@@ -52,6 +56,11 @@ def main() -> int:
     map_cfg = cfg.get("mapping") or {}
     mapper = BoardMapper(map_cfg) if bool(map_cfg.get("enabled", False)) else None
 
+    resolver = DuplicateResolver()
+    fuser = DetectionFuser()
+    tracker = CentroidTracker()
+    temporal_filter = TemporalFilter(alpha=0.7)
+
     out_cfg = cfg.get("output") or {}
     save_image = bool(out_cfg.get("save_image", False))
     include_empty_frames = bool(out_cfg.get("include_empty_frames", True))
@@ -83,6 +92,10 @@ def main() -> int:
                 dets = post.process(dets, frame_shape_hw=frame.shape[:2])
 
             det_dicts = detections_to_dicts(dets)
+            det_dicts = resolver.resolve(det_dicts)
+            det_dicts = fuser.fuse(det_dicts)
+            det_dicts = tracker.update(det_dicts)
+            det_dicts = temporal_filter.update(det_dicts)
 
             # Optional mapping to grid/chess cell
             if mapper is not None:
@@ -103,6 +116,7 @@ def main() -> int:
                 "detections": det_dicts,
                 "detection_count": len(det_dicts),
                 "detection_labels": [d["label"] for d in det_dicts],
+                "object_ids": [d.get("id") for d in det_dicts if d.get("id") is not None],
             }
 
             if bool(out_cfg.get("write_outputs", True)) and (include_empty_frames or det_dicts):
