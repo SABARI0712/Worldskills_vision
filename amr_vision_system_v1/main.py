@@ -92,7 +92,6 @@ def main() -> int:
                 dets = post.process(dets, frame_shape_hw=frame.shape[:2])
 
             det_dicts = detections_to_dicts(dets)
-            det_dicts = resolver.resolve(det_dicts)
             det_dicts = fuser.fuse(det_dicts)
             det_dicts = tracker.update(det_dicts)
             det_dicts = temporal_filter.update(det_dicts)

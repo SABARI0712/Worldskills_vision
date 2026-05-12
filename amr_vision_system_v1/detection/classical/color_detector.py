@@ -11,7 +11,9 @@ from ..types import Detection
 class ColorDetector:
     def __init__(self, cfg: Dict[str, Any]) -> None:
         self.cfg = cfg
-        self.min_area = float(cfg.get("min_area", 2500))
+        self.min_area = float(cfg.get("min_area", 7000))
+        self.min_aspect_ratio = float(cfg.get("min_aspect_ratio", 0.2))
+        self.max_aspect_ratio = float(cfg.get("max_aspect_ratio", 5.0))
         self.hsv_ranges = cfg.get("hsv_ranges", {}) or {}
 
     def detect(self, frame_bgr: np.ndarray) -> List[Detection]:
@@ -40,6 +42,11 @@ class ColorDetector:
                 if area < self.min_area:
                     continue
                 x, y, bw, bh = cv2.boundingRect(cnt)
+                if bw <= 0 or bh <= 0:
+                    continue
+                aspect_ratio = float(bw) / float(bh)
+                if aspect_ratio < self.min_aspect_ratio or aspect_ratio > self.max_aspect_ratio:
+                    continue
                 x1, y1, x2, y2 = x, y, x + bw, y + bh
                 x1 = max(0, min(x1, w - 1))
                 y1 = max(0, min(y1, h - 1))

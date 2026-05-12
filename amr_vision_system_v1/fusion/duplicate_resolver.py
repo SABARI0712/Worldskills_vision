@@ -51,8 +51,30 @@ class DuplicateResolver:
             bbox = det.get("bbox_xyxy", [0, 0, 0, 0])
             if len(bbox) != 4:
                 continue
-            if any(self._iou(bbox, sel.get("bbox_xyxy", [0, 0, 0, 0])) > self.iou_threshold for sel in selected):
+            det_label = str(det.get("label", "")).strip().lower()
+            det_source = str(det.get("source", "")).strip().lower()
+            suppress = False
+            to_remove: List[Dict[str, Any]] = []
+            for sel in selected:
+                sel_bbox = sel.get("bbox_xyxy", [0, 0, 0, 0])
+                if self._iou(bbox, sel_bbox) <= self.iou_threshold:
+                    continue
+                sel_label = str(sel.get("label", "")).strip().lower()
+                sel_source = str(sel.get("source", "")).strip().lower()
+                if det_label == sel_label:
+                    suppress = True
+                    break
+                if det_source == "yolo" and sel_source == "color":
+                    to_remove.append(sel)
+                    continue
+                if det_source == "color" and sel_source == "yolo":
+                    suppress = True
+                    break
+            if suppress:
                 continue
+            for sel in to_remove:
+                if sel in selected:
+                    selected.remove(sel)
             selected.append(det)
 
         selected.sort(key=lambda item: item["_index"])

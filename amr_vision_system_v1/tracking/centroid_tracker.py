@@ -64,20 +64,25 @@ class CentroidTracker:
     def _distance(self, a: Tuple[int, int], b: Tuple[int, int]) -> float:
         return math.hypot(float(a[0] - b[0]), float(a[1] - b[1]))
 
-    def _match(self, track_centroids: List[Tuple[int, int]], detections: List[Dict[str, Any]]) -> List[Tuple[int, int]]:
+    def _match(
+        self,
+        track_ids: List[int],
+        track_centroids: List[Tuple[int, int]],
+        detections: List[Dict[str, Any]],
+    ) -> List[Tuple[int, int]]:
         pairs: List[Tuple[float, int, int]] = []
         for ti, track_centroid in enumerate(track_centroids):
+            track_id = track_ids[ti]
+            track_label = self.tracks[track_id].label
             for di, det in enumerate(detections):
                 det_bbox = tuple(map(int, det.get("bbox_xyxy", [0, 0, 0, 0])))
                 det_centroid = Track.compute_centroid(det_bbox)
                 distance = self._distance(track_centroid, det_centroid)
                 if distance > self.max_distance:
                     continue
-                track_id = list(self.tracks.keys())[ti]
-                track_label = self.tracks[track_id].label
                 det_label = str(det.get("label", "object"))
                 if track_label != det_label:
-                    distance += self.label_penalty
+                    continue
                 pairs.append((distance, ti, di))
 
         pairs.sort(key=lambda x: x[0])
@@ -120,7 +125,7 @@ class CentroidTracker:
 
         track_ids = list(self.tracks.keys())
         track_centroids = [self.tracks[track_id].centroid for track_id in track_ids]
-        matches = self._match(track_centroids, detections)
+        matches = self._match(track_ids, track_centroids, detections)
 
         matched_tracks = {track_ids[ti] for ti, _ in matches}
         matched_detections = {di for _, di in matches}

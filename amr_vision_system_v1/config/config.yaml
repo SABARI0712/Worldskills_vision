@@ -53,8 +53,10 @@ detection:
     qr:
       enabled: true
     color:
-      enabled: false
-      min_area: 2500
+      enabled: true
+      min_area: 7000
+      min_aspect_ratio: 0.2
+      max_aspect_ratio: 5.0
       hsv_ranges:
         # Tuned HSV ranges from opencv/colour hsv,area/3_colour_hsv.py
         red1: [[0, 120, 70], [10, 255, 255]]
