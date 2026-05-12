@@ -52,8 +52,13 @@ detection:
     enabled: true
     qr:
       enabled: true
-    color:
+    aruco:
       enabled: true
+      dictionary: "DICT_4X4_50"
+      min_marker_area: 100
+      corner_refinement: true
+    color:
+      enabled: false
       min_area: 7000
       min_aspect_ratio: 0.2
       max_aspect_ratio: 5.0

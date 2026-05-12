@@ -15,6 +15,7 @@ class HybridDetector:
 
         self._yolo = None
         self._qr = None
+        self._aruco = None
         self._color = None
         self._contour = None
 
@@ -39,6 +40,10 @@ class HybridDetector:
                 from .classical.qr_detector import QRDetector
 
                 self._qr = QRDetector()
+            if bool(((self._ccfg.get("aruco") or {}).get("enabled", False))):
+                from .classical.aruco_detector import ArucoDetector
+
+                self._aruco = ArucoDetector(self._ccfg.get("aruco") or {})
             if bool(((self._ccfg.get("color") or {}).get("enabled", False))):
                 from .classical.color_detector import ColorDetector
 
@@ -60,6 +65,8 @@ class HybridDetector:
         if self.mode in ("classical", "hybrid") and self.classical_enabled:
             if self._qr is not None:
                 dets.extend(self._qr.detect(frame_bgr))
+            if self._aruco is not None:
+                dets.extend(self._aruco.detect(frame_bgr))
             if self._color is not None:
                 dets.extend(self._color.detect(frame_bgr))
             if self._contour is not None:
