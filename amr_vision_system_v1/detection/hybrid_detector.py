@@ -59,30 +59,33 @@ class HybridDetector:
                 self._contour = ContourDetector(self._ccfg.get("contour") or {})
 
     def detect(self, frame_bgr: np.ndarray) -> List[Detection]:
-        if self._yolo is None and self._qr is None and self._aruco is None and self._ocr is None and self._color is None and self._contour is None:
+        if not any([self._yolo, self._aruco, self._qr, self._ocr, self._color, self._contour]):
             self.warmup()
 
         dets: List[Detection] = []
 
-        # === Reliable detectors first ===
-        if self.mode in ("classical", "hybrid") and self.classical_enabled:
-            if self._aruco is not None:
-                dets.extend(self._aruco.detect(frame_bgr))
-            if self._qr is not None:
-                dets.extend(self._qr.detect(frame_bgr))
+        # High reliability first
+        if self._aruco:
+            dets.extend(self._aruco.detect(frame_bgr))
+        if self._qr:
+            dets.extend(self._qr.detect(frame_bgr))
 
-        # === YOLO ===
-        if self.mode in ("yolo", "hybrid") and self.yolo_enabled and self._yolo is not None:
+        # Main object detection
+        if self._yolo and self.yolo_enabled:
             dets.extend(self._yolo.detect(frame_bgr, conf=self.confidence))
 
-        # === Classical semantic detectors ===
-        if self.mode in ("classical", "hybrid") and self.classical_enabled:
-            if self._ocr is not None:
-                dets.extend(self._ocr.detect(frame_bgr))
-            if self._color is not None:
-                dets.extend(self._color.detect(frame_bgr))
-            if self._contour is not None:
-                dets.extend(self._contour.detect(frame_bgr))
+        # OCR (already filtered)
+        if self._ocr:
+            dets.extend(self._ocr.detect(frame_bgr))
+
+        # Low priority
+        if self._color:
+            dets.extend(self._color.detect(frame_bgr))
+        if self._contour:
+            dets.extend(self._contour.detect(frame_bgr))
+
+        # Remove very low confidence detections
+        dets = [d for d in dets if d.confidence >= 0.5]
 
         return dets
 

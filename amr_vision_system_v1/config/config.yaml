@@ -89,9 +89,10 @@ detection:
       min_area: 2000
     ocr:
       enabled: true
-      min_confidence: 0.78
-      min_text_length: 2
-      min_area: 800
+      min_confidence: 0.85
+      min_text_length: 3
+      min_area: 1500
+      max_aspect_ratio: 5.0
 
 postprocess:
   enabled: true
