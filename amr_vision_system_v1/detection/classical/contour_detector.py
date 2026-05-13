@@ -35,15 +35,18 @@ class ContourDetector:
             return 0.0
         return inter / union
 
-    def _overlaps(self, box: Sequence[float], protected_region: Sequence[float], threshold: float = 0.3) -> bool:
-        return self._iou(box, protected_region) >= float(threshold)
+    @staticmethod
+    def _center_inside(box: Sequence[float], region: Sequence[float]) -> bool:
+        cx = (box[0] + box[2]) / 2.0
+        cy = (box[1] + box[3]) / 2.0
+        return region[0] <= cx <= region[2] and region[1] <= cy <= region[3]
 
     def detect(
         self,
         frame_bgr: np.ndarray,
-        protected_regions: Optional[List[Sequence[float]]] = None,
+        occupied_regions: Optional[List[Sequence[float]]] = None,
     ) -> List[Detection]:
-        protected_regions = protected_regions or []
+        occupied_regions = occupied_regions or []
         gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
         gray = cv2.GaussianBlur(gray, (5, 5), 0)
         edges = cv2.Canny(gray, 60, 180)
@@ -63,7 +66,7 @@ class ContourDetector:
             x2 = max(0, min(x2, w - 1))
             y2 = max(0, min(y2, h - 1))
             bbox = [x1, y1, x2, y2]
-            if any(self._overlaps(bbox, region) for region in protected_regions):
+            if any(self._center_inside(bbox, region) for region in occupied_regions):
                 continue
             dets.append(
                 Detection(
