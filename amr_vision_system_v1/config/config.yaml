@@ -58,7 +58,7 @@ detection:
       min_marker_area: 100
       corner_refinement: true
     color:
-      enabled: false
+      enabled: true
       min_area: 7000
       min_aspect_ratio: 0.2
       max_aspect_ratio: 5.0
@@ -72,7 +72,7 @@ detection:
         yellow: [[25, 120, 120], [35, 255, 255]]
         black: [[0, 0, 0], [180, 255, 50]]
     contour:
-      enabled: false
+      enabled: true
       min_area: 2000
 
 postprocess:

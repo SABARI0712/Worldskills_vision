@@ -64,6 +64,12 @@ class DuplicateResolver:
                 if det_label == sel_label:
                     suppress = True
                     break
+                if det_source in ["qr", "aruco"] and sel_source == "color":
+                    to_remove.append(sel)
+                    continue
+                if det_source == "color" and sel_source in ["qr", "aruco"]:
+                    suppress = True
+                    break
                 if det_source == "yolo" and sel_source == "color":
                     to_remove.append(sel)
                     continue

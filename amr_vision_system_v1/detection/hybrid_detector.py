@@ -58,19 +58,31 @@ class HybridDetector:
             self.warmup()
 
         dets: List[Detection] = []
+        protected_regions: List[List[float]] = []
+
+        if self.mode in ("classical", "hybrid") and self.classical_enabled:
+            if self._aruco is not None:
+                aruco_dets = self._aruco.detect(frame_bgr)
+                dets.extend(aruco_dets)
+                protected_regions.extend(
+                    [list(det.bbox_xyxy) for det in aruco_dets]
+                )
+
+            if self._qr is not None:
+                qr_dets = self._qr.detect(frame_bgr)
+                dets.extend(qr_dets)
+                protected_regions.extend(
+                    [list(det.bbox_xyxy) for det in qr_dets]
+                )
 
         if self.mode in ("yolo", "hybrid") and self.yolo_enabled and self._yolo is not None:
             dets.extend(self._yolo.detect(frame_bgr, conf=self.confidence))
 
         if self.mode in ("classical", "hybrid") and self.classical_enabled:
-            if self._qr is not None:
-                dets.extend(self._qr.detect(frame_bgr))
-            if self._aruco is not None:
-                dets.extend(self._aruco.detect(frame_bgr))
             if self._color is not None:
-                dets.extend(self._color.detect(frame_bgr))
+                dets.extend(self._color.detect(frame_bgr, protected_regions))
             if self._contour is not None:
-                dets.extend(self._contour.detect(frame_bgr))
+                dets.extend(self._contour.detect(frame_bgr, protected_regions))
 
         return dets
 
