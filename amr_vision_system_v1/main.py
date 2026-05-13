@@ -13,6 +13,7 @@ from detection.hybrid_detector import HybridDetector
 from detection.types import detections_to_dicts
 from postprocessing.post_processor import PostProcessor
 from postprocessing.board_mapper import BoardMapper
+from postprocessing.perspective_transform import PerspectiveTransform
 from output.formatter import export_output
 from output.visualizer import Visualizer
 from fusion.detection_fuser import DetectionFuser
@@ -31,6 +32,14 @@ def _resolve_path(base_dir: str, maybe_rel: str) -> str:
     return os.path.normpath(os.path.join(base_dir, maybe_rel))
 
 
+def _side_by_side(left: np.ndarray, right: np.ndarray) -> np.ndarray:
+    if left.shape[0] != right.shape[0]:
+        height = min(left.shape[0], right.shape[0])
+        left = cv2.resize(left, (int(left.shape[1] * height / left.shape[0]), height), interpolation=cv2.INTER_AREA)
+        right = cv2.resize(right, (int(right.shape[1] * height / right.shape[0]), height), interpolation=cv2.INTER_AREA)
+    return cv2.hconcat([left, right])
+
+
 def main() -> int:
     base_dir = os.path.dirname(os.path.abspath(__file__))
     cfg_path = os.environ.get("AMR_VISION_CONFIG", os.path.join(base_dir, "config", "config.yaml"))
@@ -46,6 +55,9 @@ def main() -> int:
     camera = create_camera(cfg.get("camera") or {})
     pre_cfg = cfg.get("preprocess") or {}
     pre = ImagePreprocessor(pre_cfg) if bool(pre_cfg.get("enabled", True)) else None
+
+    perspective_cfg = cfg.get("perspective") or {}
+    perspective = PerspectiveTransform(perspective_cfg)
 
     detector = HybridDetector(cfg.get("detection") or {})
     detector.warmup()
@@ -91,12 +103,15 @@ def main() -> int:
             if pre is not None:
                 frame = pre.process(frame)
 
-            dets = detector.detect(frame)
+            original_frame = frame.copy()
+            warped_frame = perspective.apply(frame)
+
+            dets = detector.detect(warped_frame)
             for det in dets:
                 if det.source in ["yolo", "qr", "aruco", "contour"]:
-                    det.color = classifier.classify(frame, det.bbox_xyxy)
+                    det.color = classifier.classify(warped_frame, det.bbox_xyxy)
             if post is not None:
-                dets = post.process(dets, frame_shape_hw=frame.shape[:2])
+                dets = post.process(dets, frame_shape_hw=warped_frame.shape[:2])
 
             det_dicts = detections_to_dicts(dets)
             det_dicts = fuser.fuse(det_dicts)
@@ -105,7 +120,7 @@ def main() -> int:
 
             # Optional mapping to grid/chess cell
             if mapper is not None:
-                h, w = frame.shape[:2]
+                h, w = warped_frame.shape[:2]
                 for d in det_dicts:
                     x1, y1, x2, y2 = d["bbox_xyxy"]
                     cx = int((x1 + x2) / 2)
@@ -118,7 +133,7 @@ def main() -> int:
 
             payload = {
                 "timestamp_ms": ts_ms,
-                "image": {"width": int(frame.shape[1]), "height": int(frame.shape[0])},
+                "image": {"width": int(warped_frame.shape[1]), "height": int(warped_frame.shape[0])},
                 "detections": det_dicts,
                 "detection_count": len(det_dicts),
                 "detection_labels": [d["label"] for d in det_dicts],
@@ -133,7 +148,7 @@ def main() -> int:
                     # Write immediately in append mode (JSONL/CSV append)
                     export_output(output_format, out_cfg, payload)
 
-            annotated = frame
+            annotated = warped_frame
             if visualizer is not None:
                 grid_overlay = None
                 if bool(vis_cfg.get("draw_grid", True)) and (cfg.get("mapping") or {}).get("grid"):
@@ -145,18 +160,24 @@ def main() -> int:
                         "col_labels": str(labels.get("cols", "ABCDEFGH")),
                         "row_labels": str(labels.get("rows", "87654321")),
                     }
-                annotated = visualizer.draw(frame, det_dicts, grid=grid_overlay)
+                annotated = visualizer.draw(annotated, det_dicts, grid=grid_overlay)
 
                 if save_image:
                     img_path = _resolve_path(base_dir, str(out_cfg.get("image_path", "results/annotated.jpg")))
                     visualizer.save(img_path, annotated)
 
                 if show_window:
-                    key = visualizer.show(annotated)
+                    display_frame = annotated
+                    if perspective.enabled:
+                        display_frame = _side_by_side(original_frame, annotated)
+                    key = visualizer.show(display_frame)
                     if key == 27:
                         break
             elif show_window:
-                cv2.imshow(window_name, annotated)
+                display_frame = annotated
+                if perspective.enabled:
+                    display_frame = _side_by_side(original_frame, annotated)
+                cv2.imshow(window_name, display_frame)
                 if (cv2.waitKey(1) & 0xFF) == 27:
                     break
 
