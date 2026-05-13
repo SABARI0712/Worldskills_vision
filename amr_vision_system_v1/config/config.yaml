@@ -105,7 +105,7 @@ mapping:
     origin: top_left      # top_left
     labels:
       cols: AB
-      rows: "12"
+      rows: "87"
 
 output:
   format: json    # json | csv

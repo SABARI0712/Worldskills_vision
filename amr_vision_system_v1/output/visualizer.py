@@ -67,8 +67,10 @@ class Visualizer:
             rows = int(grid.get("rows", 8))
             cols = int(grid.get("cols", 8))
 
-            col_labels = str(grid.get("col_labels", "ABCDEFGH"))
-            row_labels = str(grid.get("row_labels", "87654321"))
+            col_labels = grid.get("col_labels") or ""
+            row_labels = grid.get("row_labels") or ""
+            col_labels = str(col_labels)
+            row_labels = str(row_labels)
 
             cell_w = w / cols
             cell_h = h / rows
@@ -76,7 +78,7 @@ class Visualizer:
             if occupancy is not None:
                 occupancy_map = occupancy.get("occupancy_map", {})
 
-                for cell, label in occupancy_map.items():
+                for cell, data in occupancy_map.items():
                     if len(cell) < 2:
                         continue
 
@@ -101,6 +103,9 @@ class Visualizer:
                         (0, 255, 255),
                         -1
                     )
+
+                    label = data.get("label") if isinstance(data, dict) else data
+                    label = str(label)
 
                     cv2.putText(
                         occupancy_label_layer,

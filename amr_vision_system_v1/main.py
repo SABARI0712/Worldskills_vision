@@ -176,7 +176,7 @@ def main() -> int:
                     annotated,
                     det_dicts,
                     grid=grid_overlay,
-                    occupancy=occupancy_data.get("occupancy_map") if occupancy_data else None,
+                    occupancy=occupancy_data if occupancy_data else None,
                 )
 
                 if save_image:
