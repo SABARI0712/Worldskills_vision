@@ -153,7 +153,7 @@ class Visualizer:
                         (x, y),
                         cv2.FONT_HERSHEY_SIMPLEX,
                         0.4,
-                        (180, 180, 180),
+                        (220, 220, 220),
                         1,
                         cv2.LINE_AA
                     )
@@ -226,11 +226,18 @@ class Visualizer:
         if occupancy is not None:
             out = cv2.addWeighted(out, 1.0, occupancy_layer, 0.25, 0)
             out = cv2.addWeighted(out, 1.0, occupancy_label_layer, 1.0, 0)
-        if grid is not None:
-            out = cv2.addWeighted(out, 1.0, grid_layer, 1.0, 0)
         out = cv2.addWeighted(out, 1.0, detection_layer, 1.0, 0)
         out = cv2.addWeighted(out, 1.0, pose_layer, 1.0, 0)
         out = cv2.addWeighted(out, 1.0, annotation_layer, 1.0, 0)
+
+        if grid is not None:
+            # Draw the grid on top so it stays visible over annotations.
+            for c in range(cols + 1):
+                x = int(c * cell_w)
+                cv2.line(out, (x, 0), (x, h), (230, 230, 230), 2)
+            for r in range(rows + 1):
+                y = int(r * cell_h)
+                cv2.line(out, (0, y), (w, y), (230, 230, 230), 2)
 
         return out
 

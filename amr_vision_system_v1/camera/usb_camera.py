@@ -34,6 +34,11 @@ class USBCamera:
         try_set_cap_prop(self.cap, cv2.CAP_PROP_FRAME_WIDTH, self.width)
         try_set_cap_prop(self.cap, cv2.CAP_PROP_FRAME_HEIGHT, self.height)
         try_set_cap_prop(self.cap, cv2.CAP_PROP_FPS, self.fps)
+        try:
+            if hasattr(cv2, "CAP_PROP_BUFFERSIZE"):
+                try_set_cap_prop(self.cap, cv2.CAP_PROP_BUFFERSIZE, 1)
+        except Exception:
+            pass
 
     def read(self) -> Tuple[bool, Optional["cv2.Mat"]]:
         if self.cap is None or not self.cap.isOpened():

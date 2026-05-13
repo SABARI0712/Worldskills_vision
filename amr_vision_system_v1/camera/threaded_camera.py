@@ -21,14 +21,16 @@ class ThreadedCamera:
             ok, frame = self.camera.read()
             with self._lock:
                 self._latest_ok = ok
-                self._latest_frame = frame.copy() if (ok and frame is not None) else frame
+                self._latest_frame = frame
             time.sleep(self.poll_interval_s)
 
     def read(self) -> Tuple[bool, Optional[Any]]:
         with self._lock:
-            if self._latest_frame is None:
-                return self._latest_ok, None
-            return self._latest_ok, self._latest_frame.copy()
+            ok = self._latest_ok
+            frame = self._latest_frame
+        if frame is None:
+            return ok, None
+        return ok, frame.copy()
 
     def close(self) -> None:
         self._stop = True
