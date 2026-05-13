@@ -13,14 +13,24 @@ class QRDetector:
         self._detector = cv2.QRCodeDetector()
 
     def detect(self, frame_bgr: np.ndarray) -> List[Detection]:
-        data, points, _ = self._detector.detectAndDecode(frame_bgr)
+        try:
+            data, points, _ = self._detector.detectAndDecode(frame_bgr)
+        except cv2.error:
+            return []
+
         if not data or points is None:
+            return []
+
+        if len(points) == 0 or len(points[0]) < 4:
             return []
 
         pts = points[0]
         xs = pts[:, 0]
         ys = pts[:, 1]
         x1, y1, x2, y2 = int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())
+
+        if x2 <= x1 or y2 <= y1:
+            return []
 
         return [
             Detection(

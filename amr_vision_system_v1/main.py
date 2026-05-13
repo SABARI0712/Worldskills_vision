@@ -19,6 +19,7 @@ from fusion.detection_fuser import DetectionFuser
 from fusion.duplicate_resolver import DuplicateResolver
 from tracking.centroid_tracker import CentroidTracker
 from tracking.temporal_filter import TemporalFilter
+from perception.color_classifier import ColorClassifier
 from utils.helpers import now_ms
 from utils.logger import setup_logger
 from utils.validators import validate_detections
@@ -49,6 +50,9 @@ def main() -> int:
     detector = HybridDetector(cfg.get("detection") or {})
     detector.warmup()
     logger.info("detector warmed up")
+
+    color_cfg = cfg.get("detection", {}).get("classical", {}).get("color", {})
+    classifier = ColorClassifier(color_cfg)
 
     post_cfg = cfg.get("postprocess") or {}
     post = PostProcessor(post_cfg) if bool(post_cfg.get("enabled", True)) else None
@@ -88,6 +92,9 @@ def main() -> int:
                 frame = pre.process(frame)
 
             dets = detector.detect(frame)
+            for det in dets:
+                if det.source in ["yolo", "qr", "aruco", "contour"]:
+                    det.color = classifier.classify(frame, det.bbox_xyxy)
             if post is not None:
                 dets = post.process(dets, frame_shape_hw=frame.shape[:2])
 

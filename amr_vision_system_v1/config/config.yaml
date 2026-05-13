@@ -38,7 +38,7 @@ preprocess:
 
 detection:
   mode: hybrid           # yolo | classical | hybrid
-  confidence: 0.90
+  confidence: 0.85
 
   yolo:
     enabled: true
@@ -90,7 +90,7 @@ mapping:
       rows: "87654321"
 
 output:
-  format: csv       # json | csv
+  format: json    # json | csv
   write_outputs: true
   # When append=true:
   # - JSON output becomes JSON Lines (one JSON object per line / per frame)
