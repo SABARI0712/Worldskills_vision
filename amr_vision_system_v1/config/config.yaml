@@ -37,7 +37,7 @@ preprocess:
     search_window_size: 21
 
 perspective:
-  enabled: false
+  enabled: true
   output_size:
     width: 800
     height: 800
@@ -93,12 +93,12 @@ postprocess:
 mapping:
   enabled: true
   grid:
-    rows: 8
-    cols: 8
+    rows: 2
+    cols: 2
     origin: top_left      # top_left
     labels:
-      cols: ABCDEFGH
-      rows: "87654321"
+      cols: AB
+      rows: "12"
 
 output:
   format: json    # json | csv

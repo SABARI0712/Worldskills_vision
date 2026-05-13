@@ -5,8 +5,10 @@ import sys
 from typing import Any, Dict, List
 
 import cv2
+import numpy as np
 
 from config.loader import load_config
+from perception.occupancy_grid import OccupancyGrid
 from camera.camera_handler import create_camera
 from preprocessing.image_preprocessor import ImagePreprocessor
 from detection.hybrid_detector import HybridDetector
@@ -71,6 +73,7 @@ def main() -> int:
 
     map_cfg = cfg.get("mapping") or {}
     mapper = BoardMapper(map_cfg) if bool(map_cfg.get("enabled", False)) else None
+    occupancy_grid = OccupancyGrid()
 
     resolver = DuplicateResolver()
     fuser = DetectionFuser()
@@ -127,6 +130,7 @@ def main() -> int:
                     cy = int((y1 + y2) / 2)
                     d["cell"] = mapper.pixel_to_cell(cx, cy, frame_w=w, frame_h=h)
 
+            occupancy_data = occupancy_grid.build(det_dicts)
             errs = validate_detections(det_dicts)
             if errs:
                 logger.warning(f"invalid detections: {errs[:3]}")
@@ -138,6 +142,7 @@ def main() -> int:
                 "detection_count": len(det_dicts),
                 "detection_labels": [d["label"] for d in det_dicts],
                 "object_ids": [d.get("id") for d in det_dicts if d.get("id") is not None],
+                "occupancy": occupancy_data,
             }
 
             if bool(out_cfg.get("write_outputs", True)) and (include_empty_frames or det_dicts):
@@ -160,7 +165,12 @@ def main() -> int:
                         "col_labels": str(labels.get("cols", "ABCDEFGH")),
                         "row_labels": str(labels.get("rows", "87654321")),
                     }
-                annotated = visualizer.draw(annotated, det_dicts, grid=grid_overlay)
+                annotated = visualizer.draw(
+                    annotated,
+                    det_dicts,
+                    grid=grid_overlay,
+                    occupancy=occupancy_data.get("occupancy_map") if occupancy_data else None,
+                )
 
                 if save_image:
                     img_path = _resolve_path(base_dir, str(out_cfg.get("image_path", "results/annotated.jpg")))

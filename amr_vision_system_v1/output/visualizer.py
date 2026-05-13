@@ -14,12 +14,20 @@ class Visualizer:
         self.draw_labels = bool(cfg.get("draw_labels", True))
         self.draw_confidence = bool(cfg.get("draw_confidence", True))
 
-    def draw(self, frame_bgr: np.ndarray, dets: List[Dict[str, Any]], grid: Optional[Dict[str, Any]] = None) -> np.ndarray:
+    def draw(
+        self,
+        frame_bgr: np.ndarray,
+        dets: List[Dict[str, Any]],
+        grid: Optional[Dict[str, Any]] = None,
+        occupancy: Optional[Dict[str, Any]] = None,
+    ) -> np.ndarray:
         out = frame_bgr.copy()
         h, w = out.shape[:2]
 
         if self.draw_grid and grid:
             self._draw_grid(out, grid)
+            if occupancy:
+                self._draw_occupancy(out, grid, occupancy)
 
         for d in dets:
             bbox = d.get("bbox_xyxy", None)
@@ -63,6 +71,47 @@ class Visualizer:
         y0 = max(0, y - th - 10)
         cv2.rectangle(img, (x, y0), (x + tw + 10, y0 + th + 10), color, -1)
         cv2.putText(img, text, (x + 5, y0 + th + 5), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 2)
+
+    @staticmethod
+    def _draw_occupancy(img: np.ndarray, grid: Dict[str, Any], occupancy: Dict[str, Any]) -> None:
+        rows = int(grid.get("rows", 8))
+        cols = int(grid.get("cols", 8))
+        col_labels = str(grid.get("col_labels", "ABCDEFGH"))
+        row_labels = str(grid.get("row_labels", "87654321"))
+        h, w = img.shape[:2]
+
+        overlay = img.copy()
+        for cell, data in occupancy.items():
+            if not cell or len(cell) < 2:
+                continue
+            col_label = cell[0]
+            row_label = cell[1:]
+            try:
+                col_idx = col_labels.index(col_label)
+                row_idx = row_labels.index(row_label)
+            except ValueError:
+                continue
+
+            x1 = int(w * col_idx / cols)
+            x2 = int(w * (col_idx + 1) / cols)
+            y1 = int(h * row_idx / rows)
+            y2 = int(h * (row_idx + 1) / rows)
+            overlay_color = (0, 128, 255)
+            cv2.rectangle(overlay, (x1, y1), (x2, y2), overlay_color, -1)
+
+            label = str(data.get("label", ""))
+            cv2.putText(
+                overlay,
+                label,
+                (x1 + 5, y1 + 18),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (255, 255, 255),
+                1,
+                cv2.LINE_AA,
+            )
+
+        cv2.addWeighted(overlay, 0.22, img, 0.78, 0, img)
 
     @staticmethod
     def _draw_grid(img: np.ndarray, grid: Dict[str, Any]) -> None:
