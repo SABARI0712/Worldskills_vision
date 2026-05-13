@@ -25,6 +25,16 @@ class TemporalFilter:
             int(TemporalFilter._blend(current[3], previous[3], alpha)),
         )
 
+    @staticmethod
+    def _blend_angle(current: float, previous: float, alpha: float) -> float:
+        """Blend angles on a 180-degree circular domain to avoid flip artifacts."""
+        delta = ((current - previous + 90.0) % 180.0) - 90.0
+        blended = previous + alpha * delta
+        blended = blended % 180.0
+        if blended < 0.0:
+            blended += 180.0
+        return blended
+
     def update(self, detections: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         updated: List[Dict[str, Any]] = []
         active_ids: List[int] = []
@@ -41,12 +51,31 @@ class TemporalFilter:
             state = self.states.get(object_id)
             if state is None:
                 self.states[object_id] = {"bbox": bbox, "confidence": confidence}
+                # Initialize angle if present
+                angle = detection.get("angle")
+                if angle is not None:
+                    self.states[object_id]["angle"] = float(angle)
             else:
                 smoothed_bbox = self._smooth_bbox(state["bbox"], bbox, self.alpha)
                 smoothed_confidence = self._blend(confidence, float(state["confidence"]), self.alpha)
                 detection["bbox_xyxy"] = [int(x) for x in smoothed_bbox]
                 detection["confidence"] = float(smoothed_confidence)
-                self.states[object_id] = {"bbox": smoothed_bbox, "confidence": smoothed_confidence}
+
+                # Smooth angle if present, preserving previous orientation when current angle is missing
+                angle = detection.get("angle")
+                state_angle = state.get("angle")
+                if angle is not None:
+                    if state_angle is not None:
+                        detection["angle"] = self._blend_angle(float(angle), float(state_angle), self.alpha)
+                    else:
+                        detection["angle"] = float(angle)
+                    state_angle = detection["angle"]
+
+                self.states[object_id] = {
+                    "bbox": smoothed_bbox,
+                    "confidence": smoothed_confidence,
+                    "angle": state_angle,
+                }
 
             active_ids.append(object_id)
             updated.append(detection)

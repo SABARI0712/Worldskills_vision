@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import cv2
 import numpy as np
@@ -9,129 +9,238 @@ import numpy as np
 class Visualizer:
     def __init__(self, cfg: Dict[str, Any]) -> None:
         self.cfg = cfg
-        self.window_name = str(cfg.get("window_name", "AMR Vision V1"))
-        self.draw_grid = bool(cfg.get("draw_grid", True))
-        self.draw_labels = bool(cfg.get("draw_labels", True))
-        self.draw_confidence = bool(cfg.get("draw_confidence", True))
+        self.line_thickness = int(cfg.get("line_thickness", 2))
+        self.font_scale = float(cfg.get("font_scale", 0.5))
+
+    def _draw_tag(self, image, pos, text, color):
+        x, y = pos
+
+        (w, h), baseline = cv2.getTextSize(
+            text,
+            cv2.FONT_HERSHEY_SIMPLEX,
+            self.font_scale,
+            1
+        )
+
+        cv2.rectangle(
+            image,
+            (x, y - h - baseline - 4),
+            (x + w + 4, y),
+            color,
+            -1
+        )
+
+        cv2.putText(
+            image,
+            text,
+            (x + 2, y - 4),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            self.font_scale,
+            (255, 255, 255),
+            1,
+            cv2.LINE_AA
+        )
 
     def draw(
         self,
         frame_bgr: np.ndarray,
-        dets: List[Dict[str, Any]],
+        detections: List[Dict[str, Any]],
         grid: Optional[Dict[str, Any]] = None,
         occupancy: Optional[Dict[str, Any]] = None,
     ) -> np.ndarray:
-        out = frame_bgr.copy()
-        h, w = out.shape[:2]
 
-        if self.draw_grid and grid:
-            self._draw_grid(out, grid)
-            if occupancy:
-                self._draw_occupancy(out, grid, occupancy)
+        base = frame_bgr.copy()
+        h, w = base.shape[:2]
 
-        for d in dets:
-            bbox = d.get("bbox_xyxy", None)
-            if not bbox or len(bbox) != 4:
-                continue
-            x1, y1, x2, y2 = map(int, bbox)
-            src = str(d.get("source", "det"))
-            color = (0, 255, 0) if src == "yolo" else (255, 200, 0)
-            cv2.rectangle(out, (x1, y1), (x2, y2), color, 2)
+        occupancy_layer = np.zeros_like(base)
+        occupancy_label_layer = np.zeros_like(base)
+        grid_layer = np.zeros_like(base)
+        detection_layer = np.zeros_like(base)
+        pose_layer = np.zeros_like(base)
+        annotation_layer = np.zeros_like(base)
 
-            if self.draw_labels:
-                label = str(d.get("label", "obj"))
-                conf = float(d.get("confidence", 0.0))
-                cell = d.get("cell", None)
-                obj_id = d.get("id") or d.get("object_id")
-                txt = label
-                if obj_id is not None:
-                    txt += f" #{obj_id}"
-                if self.draw_confidence:
-                    txt += f" {conf:.2f}"
-                if cell:
-                    txt += f" {cell}"
-                self._draw_tag(out, (x1, y1), txt, color)
+        # =========================================================
+        # DRAW GRID + OCCUPANCY LAYERS
+        # =========================================================
+
+        if grid is not None:
+            rows = int(grid.get("rows", 8))
+            cols = int(grid.get("cols", 8))
+
+            col_labels = str(grid.get("col_labels", "ABCDEFGH"))
+            row_labels = str(grid.get("row_labels", "87654321"))
+
+            cell_w = w / cols
+            cell_h = h / rows
+
+            if occupancy is not None:
+                occupancy_map = occupancy.get("occupancy_map", {})
+
+                for cell, label in occupancy_map.items():
+                    if len(cell) < 2:
+                        continue
+
+                    col_char = cell[0]
+                    row_char = cell[1:]
+
+                    try:
+                        c = col_labels.index(col_char)
+                        r = row_labels.index(row_char)
+                    except ValueError:
+                        continue
+
+                    x1 = int(c * cell_w)
+                    y1 = int(r * cell_h)
+                    x2 = int((c + 1) * cell_w)
+                    y2 = int((r + 1) * cell_h)
+
+                    cv2.rectangle(
+                        occupancy_layer,
+                        (x1, y1),
+                        (x2, y2),
+                        (0, 255, 255),
+                        -1
+                    )
+
+                    cv2.putText(
+                        occupancy_label_layer,
+                        label,
+                        (x1 + 5, y1 + 40),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.45,
+                        (0, 255, 255),
+                        1,
+                        cv2.LINE_AA
+                    )
+
+            for c in range(cols):
+                x = int(c * cell_w)
+                cv2.line(
+                    grid_layer,
+                    (x, 0),
+                    (x, h),
+                    (100, 100, 100),
+                    1
+                )
+
+            for r in range(rows):
+                y = int(r * cell_h)
+                cv2.line(
+                    grid_layer,
+                    (0, y),
+                    (w, y),
+                    (100, 100, 100),
+                    1
+                )
+
+            for r in range(rows):
+                for c in range(cols):
+                    if c >= len(col_labels) or r >= len(row_labels):
+                        continue
+
+                    cell_name = f"{col_labels[c]}{row_labels[r]}"
+                    x = int(c * cell_w + 5)
+                    y = int(r * cell_h + 20)
+
+                    cv2.putText(
+                        grid_layer,
+                        cell_name,
+                        (x, y),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.4,
+                        (180, 180, 180),
+                        1,
+                        cv2.LINE_AA
+                    )
+
+        # =========================================================
+        # DRAW DETECTIONS + POSE + ANNOTATIONS
+        # =========================================================
+
+        for det in detections:
+            x1, y1, x2, y2 = map(int, det.get("bbox_xyxy", [0, 0, 0, 0]))
+            label = str(det.get("label", "object"))
+            source = str(det.get("source", ""))
+            object_id = det.get("id")
+            angle = det.get("angle")
+
+            txt = label
+            if object_id is not None:
+                txt += f" #{object_id}"
+            if angle is not None:
+                txt += f" {angle:.1f}°"
+
+            if source == "yolo":
+                color = (255, 0, 0)
+            elif source == "aruco":
+                color = (0, 255, 0)
+            elif source == "qr":
+                color = (0, 255, 255)
+            elif source == "color":
+                color = (255, 255, 0)
+            elif source == "contour":
+                color = (0, 165, 255)
+            else:
+                color = (255, 255, 255)
+
+            cv2.rectangle(
+                detection_layer,
+                (x1, y1),
+                (x2, y2),
+                color,
+                self.line_thickness
+            )
+
+            self._draw_tag(
+                annotation_layer,
+                (x1, y1),
+                txt,
+                color
+            )
+
+            if angle is not None:
+                cx = int((x1 + x2) / 2)
+                cy = int((y1 + y2) / 2)
+                length = 50
+                theta = np.deg2rad(angle)
+                x_end = int(cx + length * np.cos(theta))
+                y_end = int(cy - length * np.sin(theta))
+
+                cv2.arrowedLine(
+                    pose_layer,
+                    (cx, cy),
+                    (x_end, y_end),
+                    (0, 0, 255),
+                    2,
+                    tipLength=0.25
+                )
+
+        out = base.copy()
+        if occupancy is not None:
+            out = cv2.addWeighted(out, 1.0, occupancy_layer, 0.25, 0)
+            out = cv2.addWeighted(out, 1.0, occupancy_label_layer, 1.0, 0)
+        if grid is not None:
+            out = cv2.addWeighted(out, 1.0, grid_layer, 1.0, 0)
+        out = cv2.addWeighted(out, 1.0, detection_layer, 1.0, 0)
+        out = cv2.addWeighted(out, 1.0, pose_layer, 1.0, 0)
+        out = cv2.addWeighted(out, 1.0, annotation_layer, 1.0, 0)
 
         return out
 
-    def show(self, image_bgr: np.ndarray) -> int:
-        cv2.imshow(self.window_name, image_bgr)
+    def show(
+        self,
+        frame_bgr: np.ndarray,
+        window_name: str = "AMR Vision"
+    ) -> int:
+
+        cv2.imshow(window_name, frame_bgr)
+
         return cv2.waitKey(1) & 0xFF
 
-    def save(self, path: str, image_bgr: np.ndarray) -> None:
-        import os
+    def save(
+        self,
+        path: str,
+        frame_bgr: np.ndarray
+    ) -> None:
 
-        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-        cv2.imwrite(path, image_bgr)
-
-    @staticmethod
-    def _draw_tag(img: np.ndarray, xy: Tuple[int, int], text: str, color: Tuple[int, int, int]) -> None:
-        x, y = xy
-        (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 2)
-        y0 = max(0, y - th - 10)
-        cv2.rectangle(img, (x, y0), (x + tw + 10, y0 + th + 10), color, -1)
-        cv2.putText(img, text, (x + 5, y0 + th + 5), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 2)
-
-    @staticmethod
-    def _draw_occupancy(img: np.ndarray, grid: Dict[str, Any], occupancy: Dict[str, Any]) -> None:
-        rows = int(grid.get("rows", 8))
-        cols = int(grid.get("cols", 8))
-        col_labels = str(grid.get("col_labels", "ABCDEFGH"))
-        row_labels = str(grid.get("row_labels", "87654321"))
-        h, w = img.shape[:2]
-
-        overlay = img.copy()
-        for cell, data in occupancy.items():
-            if not cell or len(cell) < 2:
-                continue
-            col_label = cell[0]
-            row_label = cell[1:]
-            try:
-                col_idx = col_labels.index(col_label)
-                row_idx = row_labels.index(row_label)
-            except ValueError:
-                continue
-
-            x1 = int(w * col_idx / cols)
-            x2 = int(w * (col_idx + 1) / cols)
-            y1 = int(h * row_idx / rows)
-            y2 = int(h * (row_idx + 1) / rows)
-            overlay_color = (0, 128, 255)
-            cv2.rectangle(overlay, (x1, y1), (x2, y2), overlay_color, -1)
-
-            label = str(data.get("label", ""))
-            cv2.putText(
-                overlay,
-                label,
-                (x1 + 5, y1 + 18),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.5,
-                (255, 255, 255),
-                1,
-                cv2.LINE_AA,
-            )
-
-        cv2.addWeighted(overlay, 0.22, img, 0.78, 0, img)
-
-    @staticmethod
-    def _draw_grid(img: np.ndarray, grid: Dict[str, Any]) -> None:
-        rows = int(grid.get("rows", 8))
-        cols = int(grid.get("cols", 8))
-        col_labels = str(grid.get("col_labels", "ABCDEFGH"))
-        row_labels = str(grid.get("row_labels", "87654321"))
-        h, w = img.shape[:2]
-
-        for c in range(1, cols):
-            x = int(w * c / cols)
-            cv2.line(img, (x, 0), (x, h), (180, 180, 180), 1)
-        for r in range(1, rows):
-            y = int(h * r / rows)
-            cv2.line(img, (0, y), (w, y), (180, 180, 180), 1)
-
-        for c in range(min(cols, len(col_labels))):
-            x = int(w * (c + 0.02) / cols)
-            cv2.putText(img, col_labels[c], (x, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (220, 220, 220), 2)
-        for r in range(min(rows, len(row_labels))):
-            y = int(h * (r + 0.15) / rows)
-            cv2.putText(img, row_labels[r], (5, y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (220, 220, 220), 2)
-
+        cv2.imwrite(path, frame_bgr)

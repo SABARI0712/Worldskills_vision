@@ -16,6 +16,7 @@ from detection.types import detections_to_dicts
 from postprocessing.post_processor import PostProcessor
 from postprocessing.board_mapper import BoardMapper
 from postprocessing.perspective_transform import PerspectiveTransform
+from postprocessing.pose_estimator import PoseEstimator
 from output.formatter import export_output
 from output.visualizer import Visualizer
 from fusion.detection_fuser import DetectionFuser
@@ -71,6 +72,9 @@ def main() -> int:
     post_cfg = cfg.get("postprocess") or {}
     post = PostProcessor(post_cfg) if bool(post_cfg.get("enabled", True)) else None
 
+    pose_cfg = post_cfg.get("pose") or {}
+    pose_estimator = PoseEstimator(pose_cfg)
+
     map_cfg = cfg.get("mapping") or {}
     mapper = BoardMapper(map_cfg) if bool(map_cfg.get("enabled", False)) else None
     occupancy_grid = OccupancyGrid()
@@ -119,6 +123,9 @@ def main() -> int:
             det_dicts = detections_to_dicts(dets)
             det_dicts = fuser.fuse(det_dicts)
             det_dicts = tracker.update(det_dicts)
+
+            # Pose estimation for tracked objects
+            det_dicts = pose_estimator.estimate_pose(det_dicts, warped_frame)
             det_dicts = temporal_filter.update(det_dicts)
 
             # Optional mapping to grid/chess cell
