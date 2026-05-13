@@ -85,23 +85,13 @@ detection:
         yellow: [[25, 120, 120], [35, 255, 255]]
         black: [[0, 0, 0], [180, 255, 50]]
     contour:
-      enabled: true
+      enabled: false
       min_area: 2000
     ocr:
       enabled: true
-      languages:
-        - en
-      confidence_threshold: 0.6
-      use_tesseract: true
-      tesseract_config: "--oem 3 --psm 6"
-      use_clahe: true
-      clahe_clip_limit: 2.0
-      clahe_tile_grid_size: [8, 8]
-      use_mser: true
-      max_regions: 20
-      min_region_area: 100
-      max_region_area: 40000
-      padding: 8
+      min_confidence: 0.78
+      min_text_length: 2
+      min_area: 800
 
 postprocess:
   enabled: true

@@ -109,8 +109,8 @@ class PoseEstimator:
 
         longest_edge = edges[int(np.argmax(lengths))]
         angle = np.degrees(np.arctan2(longest_edge[1], longest_edge[0]))
-        if angle < 0.0:
-            angle += 180.0
-        angle = angle % 180.0
-
-        return angle
+        
+        angle = angle % 180
+        if angle < 0:
+            angle += 180
+        return round(angle, 1)

@@ -59,43 +59,30 @@ class HybridDetector:
                 self._contour = ContourDetector(self._ccfg.get("contour") or {})
 
     def detect(self, frame_bgr: np.ndarray) -> List[Detection]:
-        if self._yolo is None and self._qr is None and self._color is None and self._contour is None:
+        if self._yolo is None and self._qr is None and self._aruco is None and self._ocr is None and self._color is None and self._contour is None:
             self.warmup()
 
         dets: List[Detection] = []
-        occupied_regions: List[List[float]] = []
 
+        # === Reliable detectors first ===
         if self.mode in ("classical", "hybrid") and self.classical_enabled:
             if self._aruco is not None:
-                aruco_dets = self._aruco.detect(frame_bgr)
-                dets.extend(aruco_dets)
-                occupied_regions.extend(
-                    [list(det.bbox_xyxy) for det in aruco_dets]
-                )
-
+                dets.extend(self._aruco.detect(frame_bgr))
             if self._qr is not None:
-                qr_dets = self._qr.detect(frame_bgr)
-                dets.extend(qr_dets)
-                occupied_regions.extend(
-                    [list(det.bbox_xyxy) for det in qr_dets]
-                )
+                dets.extend(self._qr.detect(frame_bgr))
 
+        # === YOLO ===
         if self.mode in ("yolo", "hybrid") and self.yolo_enabled and self._yolo is not None:
-            yolo_dets = self._yolo.detect(frame_bgr, conf=self.confidence)
-            dets.extend(yolo_dets)
-            occupied_regions.extend(
-                [list(det.bbox_xyxy) for det in yolo_dets]
-            )
+            dets.extend(self._yolo.detect(frame_bgr, conf=self.confidence))
 
+        # === Classical semantic detectors ===
         if self.mode in ("classical", "hybrid") and self.classical_enabled:
             if self._ocr is not None:
-                ocr_dets = self._ocr.detect(frame_bgr)
-                dets.extend(ocr_dets)
-                occupied_regions.extend([list(det.bbox_xyxy) for det in ocr_dets])
+                dets.extend(self._ocr.detect(frame_bgr))
             if self._color is not None:
-                dets.extend(self._color.detect(frame_bgr, occupied_regions))
+                dets.extend(self._color.detect(frame_bgr))
             if self._contour is not None:
-                dets.extend(self._contour.detect(frame_bgr, occupied_regions))
+                dets.extend(self._contour.detect(frame_bgr))
 
         return dets
 
