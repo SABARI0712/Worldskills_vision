@@ -9,7 +9,7 @@ def create_camera(cfg: Dict[str, Any]):
         from .usb_camera import USBCamera
 
         usb = cfg.get("usb", {}) or {}
-        return USBCamera(
+        camera = USBCamera(
             index=int(usb.get("index", 0)),
             width=usb.get("width"),
             height=usb.get("height"),
@@ -17,6 +17,16 @@ def create_camera(cfg: Dict[str, Any]):
             reconnect=bool(usb.get("reconnect", True)),
             reconnect_wait_s=float(usb.get("reconnect_wait_s", 0.5)),
         )
+
+        if bool(cfg.get("threaded_reader", False)):
+            from .threaded_camera import ThreadedCamera
+
+            camera = ThreadedCamera(
+                camera=camera,
+                poll_interval_s=float(cfg.get("threaded_poll_interval_s", 0.005)),
+            )
+
+        return camera
 
     if source == "ros":
         from .ros_camera import ROSCamera

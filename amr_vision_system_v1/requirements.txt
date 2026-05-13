@@ -8,3 +8,5 @@ PyYAML>=6.0
 
 # Optional (only needed for YOLO detection)
 ultralytics>=8.0
+# Optional (only needed for OCR detection)
+pytesseract>=0.3.10

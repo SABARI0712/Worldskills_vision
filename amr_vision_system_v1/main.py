@@ -187,7 +187,7 @@ def main() -> int:
                     display_frame = annotated
                     if perspective.enabled:
                         display_frame = _side_by_side(original_frame, annotated)
-                    key = visualizer.show(display_frame)
+                    key = visualizer.show(display_frame, window_name)
                     if key == 27:
                         break
             elif show_window:

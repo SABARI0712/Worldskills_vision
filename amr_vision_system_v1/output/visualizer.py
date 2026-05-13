@@ -181,6 +181,8 @@ class Visualizer:
                 color = (0, 255, 0)
             elif source == "qr":
                 color = (0, 255, 255)
+            elif source == "ocr":
+                color = (0, 215, 255)
             elif source == "color":
                 color = (255, 255, 0)
             elif source == "contour":
@@ -239,7 +241,6 @@ class Visualizer:
     ) -> int:
 
         cv2.imshow(window_name, frame_bgr)
-
         return cv2.waitKey(1) & 0xFF
 
     def save(

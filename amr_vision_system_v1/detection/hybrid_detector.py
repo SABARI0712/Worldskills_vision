@@ -18,6 +18,7 @@ class HybridDetector:
         self._aruco = None
         self._color = None
         self._contour = None
+        self._ocr = None
 
         ycfg = (cfg.get("yolo") or {}) if cfg else {}
         ccfg = (cfg.get("classical") or {}) if cfg else {}
@@ -44,6 +45,10 @@ class HybridDetector:
                 from .classical.aruco_detector import ArucoDetector
 
                 self._aruco = ArucoDetector(self._ccfg.get("aruco") or {})
+            if bool(((self._ccfg.get("ocr") or {}).get("enabled", False))):
+                from .classical.ocr_detector import OCRDetector
+
+                self._ocr = OCRDetector(self._ccfg.get("ocr") or {})
             if bool(((self._ccfg.get("color") or {}).get("enabled", False))):
                 from .classical.color_detector import ColorDetector
 
@@ -83,6 +88,10 @@ class HybridDetector:
             )
 
         if self.mode in ("classical", "hybrid") and self.classical_enabled:
+            if self._ocr is not None:
+                ocr_dets = self._ocr.detect(frame_bgr)
+                dets.extend(ocr_dets)
+                occupied_regions.extend([list(det.bbox_xyxy) for det in ocr_dets])
             if self._color is not None:
                 dets.extend(self._color.detect(frame_bgr, occupied_regions))
             if self._contour is not None:
