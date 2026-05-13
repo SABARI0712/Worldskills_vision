@@ -198,6 +198,48 @@ class Visualizer:
                 self.line_thickness
             )
 
+            centroid = det.get("centroid")
+            if centroid and isinstance(centroid, (list, tuple)) and len(centroid) == 2:
+                cx, cy = int(centroid[0]), int(centroid[1])
+            else:
+                cx = int((x1 + x2) / 2)
+                cy = int((y1 + y2) / 2)
+
+            cv2.circle(
+                annotation_layer,
+                (cx, cy),
+                5,
+                color,
+                -1
+            )
+            cv2.line(
+                annotation_layer,
+                (cx - 8, cy),
+                (cx + 8, cy),
+                color,
+                1
+            )
+            cv2.line(
+                annotation_layer,
+                (cx, cy - 8),
+                (cx, cy + 8),
+                color,
+                1
+            )
+
+            velocity = None
+            meta = det.get("meta") or {}
+            if isinstance(meta, dict):
+                velocity = meta.get("velocity")
+            if velocity:
+                vel_text = f"v={velocity[0]},{velocity[1]}"
+                self._draw_tag(
+                    annotation_layer,
+                    (x1, y2 + 20),
+                    vel_text,
+                    color
+                )
+
             self._draw_tag(
                 annotation_layer,
                 (x1, y1),
@@ -206,8 +248,6 @@ class Visualizer:
             )
 
             if angle is not None:
-                cx = int((x1 + x2) / 2)
-                cy = int((y1 + y2) / 2)
                 length = 50
                 theta = np.deg2rad(angle)
                 x_end = int(cx + length * np.cos(theta))
