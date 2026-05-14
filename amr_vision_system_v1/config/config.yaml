@@ -128,6 +128,12 @@ output:
   image_path: results/annotated.jpg
   save_image: false      # set true only when you want per-frame annotated image writes
 
+counts:
+  enabled: false
+  include_in_output: true
+  draw_on_screen: true
+  display_position: [10, 30]
+
 visualization:
   enabled: true
   show_window: true

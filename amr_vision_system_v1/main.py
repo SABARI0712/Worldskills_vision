@@ -95,6 +95,12 @@ def main() -> int:
     vis_cfg = cfg.get("visualization") or {}
     visualizer = Visualizer(vis_cfg) if bool(vis_cfg.get("enabled", True)) else None
 
+    counts_cfg = cfg.get("counts") or {}
+    counts_enabled = bool(counts_cfg.get("enabled", True))
+    counts_include = bool(counts_cfg.get("include_in_output", True))
+    counts_draw = bool(counts_cfg.get("draw_on_screen", True))
+    counts_position = tuple(counts_cfg.get("display_position", [10, 30]))
+
     show_window = bool(vis_cfg.get("show_window", True))
     window_name = str(vis_cfg.get("window_name", "AMR Vision V1"))
     if show_window and visualizer is not None:
@@ -144,18 +150,19 @@ def main() -> int:
             if errs:
                 logger.warning(f"invalid detections: {errs[:3]}")
 
-            count_summary = counter.update(det_dicts)
+            count_summary = counter.update(det_dicts) if counts_enabled else {}
 
             payload = {
                 "timestamp_ms": ts_ms,
                 "image": {"width": int(warped_frame.shape[1]), "height": int(warped_frame.shape[0])},
                 "detections": det_dicts,
                 "detection_count": len(det_dicts),
-                "count_summary": count_summary,
                 "detection_labels": [d["label"] for d in det_dicts],
                 "object_ids": [d.get("id") for d in det_dicts if d.get("id") is not None],
                 "occupancy": occupancy_data,
             }
+            if counts_enabled and counts_include:
+                payload["count_summary"] = count_summary
 
             if bool(out_cfg.get("write_outputs", True)) and (include_empty_frames or det_dicts):
                 if not output_append:
@@ -184,8 +191,8 @@ def main() -> int:
                     occupancy=occupancy_data if occupancy_data else None,
                 )
 
-                if count_summary:
-                    annotated = visualizer.draw_counts(annotated, count_summary, position=(10, 30))
+                if counts_enabled and counts_draw and count_summary:
+                    annotated = visualizer.draw_counts(annotated, count_summary, position=counts_position)
 
                 if save_image:
                     img_path = _resolve_path(base_dir, str(out_cfg.get("image_path", "results/annotated.jpg")))
