@@ -8,6 +8,7 @@ import cv2
 import numpy as np
 
 from config.loader import load_config
+from perception.counter import ObjectCounter
 from perception.occupancy_grid import OccupancyGrid
 from camera.camera_handler import create_camera
 from preprocessing.image_preprocessor import ImagePreprocessor
@@ -83,6 +84,7 @@ def main() -> int:
     fuser = DetectionFuser()
     tracker = CentroidTracker()
     temporal_filter = TemporalFilter(alpha=0.7)
+    counter = ObjectCounter()
 
     out_cfg = cfg.get("output") or {}
     save_image = bool(out_cfg.get("save_image", False))
@@ -142,11 +144,14 @@ def main() -> int:
             if errs:
                 logger.warning(f"invalid detections: {errs[:3]}")
 
+            count_summary = counter.update(det_dicts)
+
             payload = {
                 "timestamp_ms": ts_ms,
                 "image": {"width": int(warped_frame.shape[1]), "height": int(warped_frame.shape[0])},
                 "detections": det_dicts,
                 "detection_count": len(det_dicts),
+                "count_summary": count_summary,
                 "detection_labels": [d["label"] for d in det_dicts],
                 "object_ids": [d.get("id") for d in det_dicts if d.get("id") is not None],
                 "occupancy": occupancy_data,
@@ -178,6 +183,9 @@ def main() -> int:
                     grid=grid_overlay,
                     occupancy=occupancy_data if occupancy_data else None,
                 )
+
+                if count_summary:
+                    annotated = visualizer.draw_counts(annotated, count_summary, position=(10, 30))
 
                 if save_image:
                     img_path = _resolve_path(base_dir, str(out_cfg.get("image_path", "results/annotated.jpg")))

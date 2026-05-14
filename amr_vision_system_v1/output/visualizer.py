@@ -281,6 +281,52 @@ class Visualizer:
 
         return out
 
+    def draw_counts(self, frame: np.ndarray, count_summary: Dict[str, Any], position=(10, 30)) -> np.ndarray:
+        img = frame.copy()
+        y = position[1]
+        h = 22
+
+        cv2.putText(
+            img,
+            "=== COUNT SUMMARY ===",
+            (position[0], y),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.65,
+            (0, 255, 255),
+            2,
+            cv2.LINE_AA
+        )
+        y += h
+
+        total = count_summary.get("total_objects", 0)
+        cv2.putText(
+            img,
+            f"Total: {total}",
+            (position[0], y),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (255, 255, 255),
+            2,
+            cv2.LINE_AA
+        )
+        y += h
+
+        by_label = count_summary.get("by_label", {})
+        for label, cnt in list(by_label.items())[:10]:
+            cv2.putText(
+                img,
+                f"  {label}: {cnt}",
+                (position[0], y),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.55,
+                (0, 255, 0),
+                2,
+                cv2.LINE_AA
+            )
+            y += h
+
+        return img
+
     def show(
         self,
         frame_bgr: np.ndarray,

@@ -51,11 +51,11 @@ perspective:
 
 detection:
   mode: hybrid           # yolo | classical | hybrid
-  confidence: 0.85
+  confidence: 0.03
 
   yolo:
     enabled: true
-    weights_path: /home/user/YOLO/runs/train33/weights/best.pt
+    weights_path: /home/user/YOLO/runs/train38/weights/best.pt
     imgsz: 640
     device: null         # null lets ultralytics choose
     iou: 0.45
@@ -88,8 +88,8 @@ detection:
       enabled: false
       min_area: 2000
     ocr:
-      enabled: true
-      min_confidence: 0.85
+      enabled: false
+      min_confidence: 0.805
       min_text_length: 3
       min_area: 1500
       max_aspect_ratio: 5.0
