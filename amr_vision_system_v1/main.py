@@ -21,6 +21,7 @@ from postprocessing.perspective_transform import PerspectiveTransform
 from postprocessing.pose_estimator import PoseEstimator
 from output.formatter import export_output
 from output.visualizer import Visualizer
+from output.runtime_monitor import RuntimeMonitor
 from fusion.detection_fuser import DetectionFuser
 from tracking.centroid_tracker import CentroidTracker
 from tracking.temporal_filter import TemporalFilter
@@ -95,6 +96,7 @@ def main() -> int:
     output_history: List[Dict[str, Any]] = []
     vis_cfg = cfg.get("visualization") or {}
     visualizer = Visualizer(vis_cfg) if bool(vis_cfg.get("enabled", True)) else None
+    runtime_monitor = RuntimeMonitor() if bool(out_cfg.get("runtime_monitor", True)) else None
 
     counts_cfg = cfg.get("counts") or {}
     counts_enabled = bool(counts_cfg.get("enabled", True))
@@ -179,6 +181,9 @@ def main() -> int:
                     export_output(output_format, out_cfg, payload)
 
             annotated = warped_frame
+            if runtime_monitor is not None:
+                runtime_monitor.display(det_dicts)
+
             if visualizer is not None:
                 grid_overlay = None
                 if bool(vis_cfg.get("draw_grid", True)) and mapper is not None and (cfg.get("mapping") or {}).get("grid"):
