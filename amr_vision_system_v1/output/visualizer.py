@@ -9,8 +9,9 @@ import numpy as np
 class Visualizer:
     def __init__(self, cfg: Dict[str, Any]) -> None:
         self.cfg = cfg
-        self.line_thickness = int(cfg.get("line_thickness", 2))
-        self.font_scale = float(cfg.get("font_scale", 0.5))
+        self.line_thickness = int(cfg.get("line_thickness", 3))
+        self.font_scale = float(cfg.get("font_scale", 0.75))
+        self.tag_thickness = int(cfg.get("tag_thickness", 2))
 
     def _draw_tag(self, image, pos, text, color):
         x, y = pos
@@ -19,25 +20,37 @@ class Visualizer:
             text,
             cv2.FONT_HERSHEY_SIMPLEX,
             self.font_scale,
-            1
+            self.tag_thickness
         )
+
+        padding_x = 8
+        padding_y = 6
+        top_left = (x, max(0, y - h - baseline - padding_y))
+        bottom_right = (x + w + padding_x, y)
 
         cv2.rectangle(
             image,
-            (x, y - h - baseline - 4),
-            (x + w + 4, y),
-            color,
+            top_left,
+            bottom_right,
+            (0, 0, 0),
             -1
+        )
+        cv2.rectangle(
+            image,
+            top_left,
+            bottom_right,
+            color,
+            1
         )
 
         cv2.putText(
             image,
             text,
-            (x + 2, y - 4),
+            (x + 4, y - 4),
             cv2.FONT_HERSHEY_SIMPLEX,
             self.font_scale,
             (255, 255, 255),
-            1,
+            self.tag_thickness,
             cv2.LINE_AA
         )
 
@@ -193,6 +206,20 @@ class Visualizer:
             cv2.rectangle(
                 detection_layer,
                 (x1, y1),
+                (x2, y2),
+                color,
+                self.line_thickness
+            )
+            cv2.line(
+                detection_layer,
+                (x1, y1),
+                (x2, y1),
+                color,
+                self.line_thickness
+            )
+            cv2.line(
+                detection_layer,
+                (x1, y2),
                 (x2, y2),
                 color,
                 self.line_thickness
