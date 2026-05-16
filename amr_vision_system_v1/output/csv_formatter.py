@@ -36,7 +36,23 @@ def export_csv(path: str, payload: Union[Dict[str, Any], List[Dict[str, Any]]], 
     ]
 
     file_exists = os.path.exists(path)
-    write_header = (not file_exists) or os.path.getsize(path) == 0
+    header_present = False
+    if file_exists and os.path.getsize(path) > 0:
+        with open(path, "r", newline="", encoding="utf-8") as existing:
+            first_line = existing.readline().strip()
+            header_present = first_line.split(",")[0] == fieldnames[0]
+
+    if append and file_exists and not header_present:
+        temp_path = path + ".tmp"
+        with open(temp_path, "w", newline="", encoding="utf-8") as temp_file:
+            temp_writer = csv.DictWriter(temp_file, fieldnames=fieldnames)
+            temp_writer.writeheader()
+            with open(path, "r", newline="", encoding="utf-8") as existing:
+                temp_file.write(existing.read())
+        os.replace(temp_path, path)
+        header_present = True
+
+    write_header = (not file_exists) or os.path.getsize(path) == 0 or not header_present
     mode = "a" if append else "w"
 
     with open(path, mode, newline="", encoding="utf-8") as f:
