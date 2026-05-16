@@ -19,12 +19,13 @@ class CentroidTracker:
         self.max_disappeared = int(max_disappeared)
         self.max_distance = float(max_distance)
 
-    def update(self, detections: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        current_time = time.time()
-        dt = current_time - self.last_update_time
+    def update(self, detections: List[Dict[str, Any]], timestamp_ms: int | None = None) -> List[Dict[str, Any]]:
+        # Use provided frame timestamp when available (milliseconds), else fallback to wall clock
+        now = (timestamp_ms / 1000.0) if timestamp_ms is not None else time.time()
+        dt = now - self.last_update_time
         if dt <= 0:
             dt = 0.033
-        self.last_update_time = current_time
+        self.last_update_time = now
 
         if detections is None:
             detections = []

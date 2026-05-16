@@ -40,6 +40,17 @@ class ArucoDetector:
                 params.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
             elif hasattr(params, "cornerRefinement"):
                 params.cornerRefinement = True
+
+        # Improve robustness in low-contrast or slightly noisy images.
+        if hasattr(params, "adaptiveThreshConstant"):
+            params.adaptiveThreshConstant = int(getattr(params, "adaptiveThreshConstant", 7))
+        if hasattr(params, "adaptiveThreshWinSizeMin"):
+            params.adaptiveThreshWinSizeMin = int(getattr(params, "adaptiveThreshWinSizeMin", 3))
+        if hasattr(params, "adaptiveThreshWinSizeMax"):
+            params.adaptiveThreshWinSizeMax = int(getattr(params, "adaptiveThreshWinSizeMax", 23))
+        if hasattr(params, "adaptiveThreshWinSizeStep"):
+            params.adaptiveThreshWinSizeStep = int(getattr(params, "adaptiveThreshWinSizeStep", 10))
+
         return params
 
     def _make_detector(self, dictionary: Any, parameters: Any) -> Any:
@@ -51,10 +62,12 @@ class ArucoDetector:
         if frame_bgr is None or frame_bgr.size == 0:
             return []
 
+        gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
+
         if self._detector is not None:
-            corners, ids, _ = self._detector.detectMarkers(frame_bgr)
+            corners, ids, _ = self._detector.detectMarkers(gray)
         else:
-            corners, ids, _ = cv2.aruco.detectMarkers(frame_bgr, self._dictionary, parameters=self._parameters)
+            corners, ids, _ = cv2.aruco.detectMarkers(gray, self._dictionary, parameters=self._parameters)
 
         if ids is None or len(ids) == 0:
             return []

@@ -13,6 +13,10 @@ class ObjectCounter:
         self.tracked_ids = set()
 
     def update(self, detections: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Update counts for the current frame only.
+
+        This method returns a per-frame snapshot rather than cumulative totals.
+        """
         self.reset()
 
         for det in detections:

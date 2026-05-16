@@ -35,7 +35,7 @@ class TemporalFilter:
             blended += 180.0
         return blended
 
-    def update(self, detections: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def update(self, detections: List[Dict[str, Any]], alive_ids: Optional[set] = None) -> List[Dict[str, Any]]:
         updated: List[Dict[str, Any]] = []
         active_ids: List[int] = []
 
@@ -80,5 +80,7 @@ class TemporalFilter:
             active_ids.append(object_id)
             updated.append(detection)
 
-        self.states = {oid: state for oid, state in self.states.items() if oid in active_ids}
+        # Prune states based on tracker liveness if provided, else use active_ids
+        prune_set = set(alive_ids) if alive_ids is not None else set(active_ids)
+        self.states = {oid: state for oid, state in self.states.items() if oid in prune_set}
         return updated

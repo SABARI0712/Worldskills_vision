@@ -9,6 +9,9 @@ from .json_formatter import export_json
 def export_output(fmt: str, cfg: Dict[str, Any], payload: Union[Dict[str, Any], List[Dict[str, Any]]]) -> None:
     fmt = (fmt or "json").lower()
     append = bool(cfg.get("append", False))
+    # Normalise API: always pass a list to underlying exporters
+    if isinstance(payload, dict):
+        payload = [payload]
     if fmt == "json":
         export_json(str(cfg.get("json_path", "results/output.json")), payload, append=append)
         return

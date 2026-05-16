@@ -8,7 +8,7 @@ class DuplicateResolver:
 
     def __init__(self, iou_threshold: float = 0.45) -> None:
         self.iou_threshold = float(iou_threshold)
-        self.source_priority = ["yolo", "qr", "color", "contour"]
+        self.source_priority = ["aruco", "qr", "yolo", "color", "contour"]
 
     @staticmethod
     def _bbox_area(box: Sequence[float]) -> float:
@@ -62,8 +62,15 @@ class DuplicateResolver:
                 sel_label = str(sel.get("label", "")).strip().lower()
                 sel_source = str(sel.get("source", "")).strip().lower()
                 if det_label == sel_label:
-                    suppress = True
-                    break
+                    # Prefer detections from higher-priority sources regardless of confidence
+                    det_prio = self._priority(det)
+                    sel_prio = self._priority(sel)
+                    if det_prio < sel_prio:
+                        to_remove.append(sel)
+                        continue
+                    else:
+                        suppress = True
+                        break
                 if det_source in ["qr", "aruco"] and sel_source == "color":
                     to_remove.append(sel)
                     continue

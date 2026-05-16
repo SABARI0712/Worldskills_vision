@@ -21,6 +21,7 @@ camera:
     spin_timeout_s: 0.01
 
 preprocess:
+  # NOTE: this gates ALL preprocess sub-settings below
   enabled: false
   resize:
     enabled: true
@@ -51,11 +52,11 @@ perspective:
 
 detection:
   mode: hybrid           # yolo | classical | hybrid
-  confidence: 0.03
+  confidence: 0.90
 
   yolo:
-    enabled: true
-    weights_path: /home/user/YOLO/runs/train38/weights/best.pt
+    enabled: false
+    weights_path: /home/user/YOLO/runs/train39/weights/best.pt
     imgsz: 640
     device: null         # null lets ultralytics choose
     iou: 0.45
@@ -88,13 +89,14 @@ detection:
       enabled: false
       min_area: 2000
     ocr:
-      enabled: false
+      enabled: true
       min_confidence: 0.805
       min_text_length: 3
       min_area: 1500
       max_aspect_ratio: 5.0
 
 postprocess:
+  # NOTE: this gates ALL postprocess sub-settings below
   enabled: false
   min_confidence: 0.5
   pose:
@@ -108,20 +110,19 @@ postprocess:
 mapping:
   enabled: false
   grid:
-    rows: 2
-    cols: 2
+    rows: 4
+    cols: 4
     origin: top_left      # top_left
     labels:
-      cols: AB
-      rows: "87"
+      cols: ABCD
+      rows: "8765"
 
-output:
   format: json    # json | csv
   write_outputs: true
   # When append=true:
   # - JSON output becomes JSON Lines (one JSON object per line / per frame)
   # - CSV output appends rows (keeps full history)
-  append: false
+  append: true
   include_empty_frames: false
   json_path: results/output.json
   csv_path: results/output.csv
@@ -129,7 +130,7 @@ output:
   save_image: false      # set true only when you want per-frame annotated image writes
 
 counts:
-  enabled: false
+  enabled: true
   include_in_output: true
   draw_on_screen: true
   display_position: [10, 30]

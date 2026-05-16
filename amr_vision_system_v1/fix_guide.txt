@@ -1,0 +1,268 @@
+AMR Vision System V1
+Complete Fix & Resolution Guide
+Based on Full Code Analysis — All Issues with Exact Solutions
+6
+Critical Bugs
+9
+Design Issues
+7
+Hygiene Issues
+7
+Code Quality
+Section 1 — Critical Bugs (Fix Immediately)
+These bugs cause crashes, silent misconfigurations, or resource exhaustion in production. Fix before any other work.
+Bug 1.1 — Missing Optional Import in detection/types.py
+SEVERITY: CRASH ON IMPORT
+File:  detection/types.py
+Root Cause: The Detection dataclass uses Optional[str] for the color field but Optional is never imported from typing. Any module that imports Detection will raise a NameError at startup.
+Fix — Change this line:
+# BROKEN — missing Optional
+from typing import Any, Dict, List, Tuple
+# FIXED
+from typing import Any, Dict, List, Optional, Tuple
+Verify the fix by running:
+python -c "from detection.types import Detection; print('OK')"
+Bug 1.2 — Hardcoded Confidence Floor in hybrid_detector.py
+SEVERITY: SILENT MISCONFIGURATION
+File:  detection/hybrid_detector.py, Line 88
+Root Cause: Even though confidence is read from config (e.g. 0.03), a hardcoded filter on line 88 silently drops all detections below 0.5. Users who lower the config value see no change in behaviour.
+Fix — Replace line 88:
+BEFORE (broken)
+dets = [d for d in dets if d.confidence >= 0.5]
+AFTER (fixed)
+dets = [d for d in dets if d.confidence >= self.confidence]
+After fix: set detection.confidence: 0.03 in config.yaml and confirm low-confidence detections appear in output.
+Bug 1.3 — Dead DuplicateResolver Instance in main.py
+SEVERITY: DEAD CODE / ARCHITECTURAL CONFUSION
+File:  main.py, Line 83
+Root Cause: A DuplicateResolver is instantiated as resolver but never used. The DetectionFuser already creates its own internal resolver. Two solvers are alive simultaneously; the external one is orphaned.
+Fix Option A — Remove the orphaned instance (recommended):
+# DELETE this line from main.py
+resolver = DuplicateResolver()   # line 83 — remove entirely
+fuser = DetectionFuser()         # keep this — it has its own resolver
+Fix Option B — Pass resolver into fuser (for external control):
+resolver = DuplicateResolver()
+fuser = DetectionFuser(resolver=resolver)  # inject it
+# Remove the inline resolver from DetectionFuser.__init__
+Bug 1.4 — PoseEstimator Ignores postprocess.enabled Flag
+SEVERITY: ARCHITECTURAL INCONSISTENCY
+File:  main.py (setup + main loop)
+Root Cause: post is set to None when postprocess.enabled: false, but pose_estimator is created and called unconditionally regardless. The config structure implies disabling postprocess disables all sub-steps.
+Fix — Gate pose estimator creation and usage under the post check:
+# Setup
+post = PostProcessor(post_cfg) if bool(post_cfg.get("enabled", True)) else None
+# FIXED: only create pose_estimator when postprocess is active
+pose_estimator = None
+if post is not None:
+pose_cfg = post_cfg.get("pose") or {}
+pose_estimator = PoseEstimator(pose_cfg)
+# In main loop:
+if pose_estimator is not None:
+det_dicts = pose_estimator.estimate_pose(det_dicts, warped_frame)
+Bug 1.5 — Main Loop Spins at 100% CPU on Frame Failure
+SEVERITY: RESOURCE EXHAUSTION
+File:  main.py (main loop)
+Root Cause: When the camera returns ok=False (USB disconnect, brief failure), the loop retries immediately with no sleep. This saturates one CPU core indefinitely.
+Fix — Add a short sleep before retrying:
+BEFORE (broken)
+if not ok or frame is None:
+continue   # tight spin
+AFTER (fixed)
+if not ok or frame is None:
+time.sleep(0.01)  # 10 ms
+continue
+Also ensure time is imported at the top of main.py (it is imported but time.sleep is never called — this is the first use).
+Bug 1.6 — Unbounded In-Memory Output Buffer
+SEVERITY: OUT OF MEMORY — LONG SESSIONS
+File:  main.py (output section)
+Root Cause: When output.append: false, every frame payload is appended to output_history in RAM and only written on program exit. A long-running robot session will OOM.
+Fix Option A — Change the default to append mode (recommended for robots):
+# config.yaml
+output:
+append: true   # was false — change default
+Fix Option B — Flush the buffer periodically (keep append: false):
+FLUSH_EVERY = 500  # frames
+output_history.append(payload)
+if len(output_history) >= FLUSH_EVERY:
+export_output(output_history, out_cfg)
+output_history.clear()
+Section 2 — Design & Architecture Issues
+These are not crash-level bugs but cause incorrect behaviour, confusion, or wasted computation. Fix after critical bugs.
+Issue 2.1 — README Does Not Match the Codebase
+File:  README.md
+The README states the project has no tracking, no pose estimation, no fusion. The codebase has all of these. Completely rewrite the README. At minimum, update the feature list to include: CentroidTracker, TemporalFilter, PoseEstimator, DetectionFuser, DuplicateResolver, OccupancyGrid, ObjectCounter, BoardMapper.
+Issue 2.2 — aruco Missing from DuplicateResolver Source Priority
+File:  fusion/duplicate_resolver.py
+Fix — Add aruco to the priority list:
+BEFORE (broken)
+self.source_priority = ["yolo", "qr", "color", "contour"]
+AFTER (fixed)
+self.source_priority = ["aruco", "qr", "yolo", "color", "contour"]
+ArUco markers are high-reliability detections and should outrank YOLO. Without this, aruco detections fall through source_priority.index() and raise a ValueError caught as lowest priority.
+Issue 2.3 — PerformanceMonitor Exists But Is Never Used
+File:  utils/performance_monitor.py
+Choose one of:
+Option A (recommended): Instrument the pipeline. Import PerformanceMonitor in main.py and wrap each stage: camera.read(), preprocess, detect, track, fuser, pose, export.
+Option B: Delete the file and remove from utils/__init__.py if listed.
+Issue 2.4 — _get_active_objects() Is Dead Code in CentroidTracker
+File:  tracking/centroid_tracker.py
+The method is defined but never called. Either:
+Rename to get_active_objects() (public) and call it in main.py where the tracker state is read, or
+Delete it entirely.
+Issue 2.5 — TemporalFilter Prunes State Too Aggressively
+File:  tracking/temporal_filter.py
+Root Cause: State is pruned to only IDs in the current frame. If an object disappears for one frame (but the tracker keeps it alive for max_disappeared=8 frames), the filter loses its smoothed state immediately. On re-appearance the bbox and confidence snap instead of resuming smoothly.
+Fix — Prune based on tracker liveness, not current frame:
+# Pass tracker's active IDs to the filter
+# In main.py:
+tracker_active_ids = set(tracker.objects.keys())
+filtered = temporal_filter.update(dets, tracker_active_ids)
+# In temporal_filter.py — change prune logic:
+def update(self, detections, alive_ids):
+# ... existing logic ...
+# Prune only IDs no longer tracked:
+self.states = {oid: s for oid, s in self.states.items()
+if oid in alive_ids}
+Issue 2.6 — CentroidTracker Uses Wall Clock for Velocity
+File:  tracking/centroid_tracker.py
+time.time() is used for dt in velocity computation. In a threaded/polling camera setup, frames arrive at irregular intervals, making velocity noisy.
+Fix — Pass frame timestamp into tracker.update():
+# main.py — timestamp already computed:
+timestamp_ms = now_ms()
+objects = tracker.update(dets, timestamp_ms=timestamp_ms)
+# centroid_tracker.py — use it:
+def update(self, rects, timestamp_ms=None):
+now = timestamp_ms / 1000.0 if timestamp_ms else time.time()
+dt = now - self.last_timestamp
+self.last_timestamp = now
+Issue 2.7 — ObjectCounter Resets on Every Frame
+File:  perception/object_counter.py
+self.reset() is called at the start of every update(), making counts per-frame only. The variable names (total_by_label, unique_tracked) suggest cumulative intent.
+Choose one:
+Per-frame snapshot (document this): Rename variables to frame_counts_by_label. Add a docstring: 'Returns per-frame counts, not cumulative.'
+Cumulative counting (remove reset): Delete the self.reset() call from update(). Add a public reset() method for callers to invoke when a new session begins.
+Section 3 — Configuration Issues
+Issue 3.1 — Hardcoded Absolute YOLO Weights Path
+File:  config.yaml
+BEFORE (broken)
+weights_path: /home/user/YOLO/runs/train38/weights/best.pt
+AFTER (fixed)
+weights_path: models/best.pt
+Also: create the models/ directory (see hygiene issue 4.5) and add a note to the README that the user should place their weights at amr_vision_system_v1/models/best.pt.
+Issue 3.2 — preprocess.enabled: false with Active Sub-settings
+File:  config.yaml
+resize.enabled: true and clahe.enabled: true are set inside a block where the parent is disabled. This is silently confusing.
+Option A: Set preprocess.enabled: true as the default.
+Option B: Add a comment in config.yaml directly above each sub-block:
+preprocess:
+enabled: false  # NOTE: this gates ALL sub-settings below
+resize:
+enabled: true  # only active if parent enabled: true
+Issue 3.3 — postprocess.enabled: false with pose.enabled: true Inside
+File:  config.yaml
+Same pattern as 3.2, and compounded by Bug 1.4 — the pose estimator is not actually gated by postprocess.enabled. After fixing Bug 1.4, add the same inline comment pattern here to make the hierarchy visible.
+Section 4 — Repository & Packaging Hygiene
+Issue 4.1 — Add a .gitignore
+File:  .gitignore (does not exist — create it)
+Create .gitignore in the project root with these entries:
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+results/
+logs/
+models/
+*.egg-info/
+dist/
+.env
+Issue 4.2 & 4.3 — Remove Runtime Outputs and Logs from Repo
+Files:  results/, logs/ directories
+# Remove from git tracking:
+git rm -r --cached results/
+git rm -r --cached logs/
+# Add placeholder files so directories exist in the repo:
+touch results/.gitkeep
+touch logs/.gitkeep
+git add results/.gitkeep logs/.gitkeep
+git commit -m "chore: remove runtime outputs and logs from repo"
+Issue 4.4 — Replace env_setup with a Proper Shell Script
+File:  env_setup (no extension)
+Delete env_setup and create setup.sh:
+#!/usr/bin/env bash
+set -euo pipefail
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+echo "Setup complete. Run: source .venv/bin/activate"
+Make it executable: chmod +x setup.sh
+Issue 4.5 — Add models/ Directory Placeholder
+mkdir -p models
+touch models/.gitkeep
+# models/ is already in .gitignore so only .gitkeep is tracked
+Issue 4.6 — Add pyproject.toml for Installable Package
+File:  pyproject.toml (create in project root)
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.backends.legacy:build"
+[project]
+name = "amr_vision_system"
+version = "1.0.0"
+requires-python = ">=3.9"
+Then install in editable mode: pip install -e .
+Issue 4.7 — Add Unit Tests
+Directory:  tests/ (create)
+Minimum test coverage needed:
+tests/test_duplicate_resolver.py — Test resolve() with overlapping IoU boxes from same/different sources, test source_priority ordering including aruco.
+tests/test_temporal_filter.py — Test that smoothed state is retained across frames where an object is missing but tracker-alive.
+tests/test_centroid_tracker.py — Test that objects are correctly assigned across frames, that max_disappeared evicts objects, and that velocity computation uses provided timestamps.
+Run with: python -m pytest tests/ -v
+Section 5 — Minor Code Quality Fixes
+Location
+Issue
+Fix
+camera/usb_camera.py
+Camera left in half-open state after failed read when reconnect=False
+Call self.close() unconditionally on failed read, not only when reconnect is True.
+fusion/detection_fuser.py
+DetectionFuser is a one-method wrapper with no logic beyond DuplicateResolver
+Either merge the two classes, or add real value in DetectionFuser (e.g. cross-source confidence blending).
+perception/scene_memory.py
+Module imported in __init__.py but never used in main.py
+Delete the module or wire it into the pipeline. Remove from __init__.py if deleting.
+perception/world_model.py
+Instantiated nowhere in the pipeline — dead module
+Same as above: delete or wire in.
+output/formatter.py
+export_output called with a single dict (append) or list (non-append) — inconsistent API
+Always pass a list. Wrap single-dict calls: export_output([payload], out_cfg)
+postprocessing/perspective_transform.py
+When perspective is disabled, warped_frame == original_frame, so side-by-side display shows two identical frames
+Check if perspective is enabled before building the side-by-side view. Show only the original frame if disabled.
+main.py
+time imported but time.sleep never called (needed for Bug 1.5)
+After applying Bug 1.5 fix, this resolves itself — time.sleep(0.01) uses the import.
+Section 6 — Prioritised Fix Checklist
+Add Optional to detection/types.py imports
+Replace hardcoded 0.5 confidence floor with self.confidence in hybrid_detector.py
+Remove orphaned resolver = DuplicateResolver() from main.py
+Gate pose_estimator creation and calls under postprocess.enabled
+Add time.sleep(0.01) in no-frame branch of main loop
+Fix unbounded output_history buffer (switch to append mode or periodic flush)
+Add aruco to DuplicateResolver.source_priority (highest priority)
+Fix TemporalFilter state pruning to use tracker liveness
+Clarify ObjectCounter cumulative vs per-frame semantics
+Replace hardcoded YOLO weights path with relative path
+Rewrite README to accurately describe actual codebase
+Pass frame timestamp into CentroidTracker.update() for accurate velocity
+Fix USB camera half-open state on failed read
+Create .gitignore covering __pycache__, *.pyc, .venv/, results/, logs/, models/
+Remove results/ and logs/ from git tracking; add .gitkeep placeholders
+Delete env_setup; create proper setup.sh shell script
+Add models/.gitkeep directory placeholder
+Add pyproject.toml for pip install -e . support
+Add unit tests for DuplicateResolver, TemporalFilter, CentroidTracker
+Add config.yaml inline comments explaining outer enabled gates sub-settings
+Remove or instrument PerformanceMonitor; remove or expose _get_active_objects()
+Delete or wire in scene_memory.py and world_model.py
+Normalise export_output API to always accept a list
+Total issues: 29 (6 critical, 9 design, 7 hygiene, 7 code quality). All have actionable fixes described in this document.

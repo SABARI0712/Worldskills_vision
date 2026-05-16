@@ -6,7 +6,7 @@ This folder is a **new, separate** implementation of your Version 1 perception s
 camera → preprocess → detect → export → visualize
 ```
 
-It is designed to be **stable and modular**. No tracking, no ROS publishing, no pose estimation, no benchmarking, no fail-safe, no multi-camera.
+It is designed to be **stable and modular** and includes tracking, pose estimation, fusion, and visualization components.
 
 ---
 

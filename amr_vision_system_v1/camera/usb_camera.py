@@ -54,8 +54,8 @@ class USBCamera:
         if ok:
             return True, frame
 
-        if self.reconnect:
-            self.close()
+        # Close the capture on any failed read to avoid half-open state
+        self.close()
         return False, None
 
     def close(self) -> None:

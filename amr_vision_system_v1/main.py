@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+import time
 from typing import Any, Dict, List
 
 import cv2
@@ -21,7 +22,6 @@ from postprocessing.pose_estimator import PoseEstimator
 from output.formatter import export_output
 from output.visualizer import Visualizer
 from fusion.detection_fuser import DetectionFuser
-from fusion.duplicate_resolver import DuplicateResolver
 from tracking.centroid_tracker import CentroidTracker
 from tracking.temporal_filter import TemporalFilter
 from perception.color_classifier import ColorClassifier
@@ -74,13 +74,14 @@ def main() -> int:
     post = PostProcessor(post_cfg) if bool(post_cfg.get("enabled", True)) else None
 
     pose_cfg = post_cfg.get("pose") or {}
-    pose_estimator = PoseEstimator(pose_cfg)
+    pose_estimator = None
+    if post is not None:
+        pose_estimator = PoseEstimator(pose_cfg)
 
     map_cfg = cfg.get("mapping") or {}
     mapper = BoardMapper(map_cfg) if bool(map_cfg.get("enabled", False)) else None
     occupancy_grid = OccupancyGrid()
 
-    resolver = DuplicateResolver()
     fuser = DetectionFuser()
     tracker = CentroidTracker()
     temporal_filter = TemporalFilter(alpha=0.7)
@@ -112,6 +113,7 @@ def main() -> int:
         while True:
             ok, frame = camera.read()
             if not ok or frame is None:
+                time.sleep(0.01)
                 continue
 
             ts_ms = now_ms()
@@ -130,11 +132,15 @@ def main() -> int:
 
             det_dicts = detections_to_dicts(dets)
             det_dicts = fuser.fuse(det_dicts)
-            det_dicts = tracker.update(det_dicts)
+            det_dicts = tracker.update(det_dicts, timestamp_ms=ts_ms)
 
-            # Pose estimation for tracked objects
-            det_dicts = pose_estimator.estimate_pose(det_dicts, warped_frame)
-            det_dicts = temporal_filter.update(det_dicts)
+            # Pose estimation for tracked objects (only if enabled)
+            if pose_estimator is not None:
+                det_dicts = pose_estimator.estimate_pose(det_dicts, warped_frame)
+
+            # Pass tracker alive IDs into temporal filter to avoid aggressive pruning
+            tracker_active_ids = set(getattr(tracker, "objects", {}).keys())
+            det_dicts = temporal_filter.update(det_dicts, alive_ids=tracker_active_ids)
 
             # Optional mapping to grid/chess cell
             if mapper is not None:
@@ -175,7 +181,7 @@ def main() -> int:
             annotated = warped_frame
             if visualizer is not None:
                 grid_overlay = None
-                if bool(vis_cfg.get("draw_grid", True)) and (cfg.get("mapping") or {}).get("grid"):
+                if bool(vis_cfg.get("draw_grid", True)) and mapper is not None and (cfg.get("mapping") or {}).get("grid"):
                     g = (cfg.get("mapping") or {}).get("grid") or {}
                     labels = (g.get("labels") or {}) if isinstance(g, dict) else {}
                     grid_overlay = {

@@ -84,8 +84,8 @@ class HybridDetector:
         if self._contour:
             dets.extend(self._contour.detect(frame_bgr))
 
-        # Remove very low confidence detections
-        dets = [d for d in dets if d.confidence >= 0.5]
+        # Remove very low confidence detections (use configured confidence)
+        dets = [d for d in dets if d.confidence >= self.confidence]
 
         return dets
 
