@@ -64,27 +64,34 @@ class HybridDetector:
 
         dets: List[Detection] = []
 
-        # High reliability first
+        # === High reliability semantic detectors first ===
         if self._aruco:
             dets.extend(self._aruco.detect(frame_bgr))
         if self._qr:
             dets.extend(self._qr.detect(frame_bgr))
-
-        # Main object detection
         if self._yolo and self.yolo_enabled:
             dets.extend(self._yolo.detect(frame_bgr, conf=self.confidence))
-
-        # OCR (already filtered)
         if self._ocr:
             dets.extend(self._ocr.detect(frame_bgr))
 
-        # Low priority
-        if self._color:
-            dets.extend(self._color.detect(frame_bgr))
-        if self._contour:
-            dets.extend(self._contour.detect(frame_bgr))
+        # === Build protected regions for lower-level detectors ===
+        protected_regions = []
+        for d in dets:
+            if d.source in ["aruco", "qr", "yolo", "ocr"]:
+                protected_regions.append(d.bbox_xyxy)
 
-        # Remove very low confidence detections (use configured confidence)
+        # === Low priority detectors (now semantically protected) ===
+        if self._color:
+            dets.extend(
+                self._color.detect(
+                    frame_bgr,
+                    protected_regions=protected_regions
+                )
+            )
+        if self._contour:
+            dets.extend(self._contour.detect(frame_bgr))  # TODO: pass protected_regions too if implemented
+
+        # Remove very low confidence detections
         dets = [d for d in dets if d.confidence >= self.confidence]
 
         return dets

@@ -38,13 +38,12 @@ class QRDetector:
             meta={"data": data or ""},
         )
 
-    def detect(self, frame_bgr: np.ndarray) -> List[Detection]:
+    def _try_detect(self, image: np.ndarray) -> List[Detection]:
+        """Try detection on a single image variant."""
         detections: List[Detection] = []
-        gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
-
         try:
             if hasattr(self._detector, "detectAndDecodeMulti"):
-                multi_result = self._detector.detectAndDecodeMulti(gray)
+                multi_result = self._detector.detectAndDecodeMulti(image)
                 if not isinstance(multi_result, tuple):
                     return []
 
@@ -82,17 +81,72 @@ class QRDetector:
                         continue
                 return detections
 
-            data, points, _ = self._detector.detectAndDecode(gray)
+            data, points, _ = self._detector.detectAndDecode(image)
+            if points is None or len(points) == 0:
+                return []
+            try:
+                detections.append(self._make_detection(points[0], data))
+            except ValueError:
+                pass
+
         except cv2.error:
-            return []
+            pass
 
-        if points is None or len(points) == 0:
-            return []
+        return detections
 
+    def detect(self, frame_bgr: np.ndarray) -> List[Detection]:
+        """Detect QR codes with multiple preprocessing strategies."""
+        detections: List[Detection] = []
+        gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
+
+        # Try raw grayscale first
+        detections.extend(self._try_detect(gray))
+        if detections:
+            return detections
+
+        # Preprocessing: sharpening
         try:
-            detections.append(self._make_detection(points[0], data))
-        except ValueError:
-            return []
+            kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]], dtype=np.float32)
+            sharpened = cv2.filter2D(gray, -1, kernel)
+            sharpened = np.clip(sharpened, 0, 255).astype(np.uint8)
+            detections.extend(self._try_detect(sharpened))
+            if detections:
+                return detections
+        except Exception:
+            pass
+
+        # Preprocessing: contrast enhancement (CLAHE)
+        try:
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+            enhanced = clahe.apply(gray)
+            detections.extend(self._try_detect(enhanced))
+            if detections:
+                return detections
+        except Exception:
+            pass
+
+        # Preprocessing: adaptive threshold
+        try:
+            binary = cv2.adaptiveThreshold(
+                gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                cv2.THRESH_BINARY, 11, 2
+            )
+            detections.extend(self._try_detect(binary))
+            if detections:
+                return detections
+        except Exception:
+            pass
+
+        # Preprocessing: bilateral filter + adaptive threshold
+        try:
+            filtered = cv2.bilateralFilter(gray, 9, 75, 75)
+            binary = cv2.adaptiveThreshold(
+                filtered, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                cv2.THRESH_BINARY, 11, 2
+            )
+            detections.extend(self._try_detect(binary))
+        except Exception:
+            pass
 
         return detections
 

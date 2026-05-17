@@ -8,7 +8,7 @@ class DuplicateResolver:
 
     def __init__(self, iou_threshold: float = 0.45) -> None:
         self.iou_threshold = float(iou_threshold)
-        self.source_priority = ["aruco", "qr", "yolo", "color", "contour"]
+        self.source_priority = ["aruco", "qr", "ocr", "yolo", "color", "contour"]
 
     @staticmethod
     def _bbox_area(box: Sequence[float]) -> float:
