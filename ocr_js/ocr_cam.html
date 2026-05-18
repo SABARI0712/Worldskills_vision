@@ -1,0 +1,1350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OCR CAM — Offline Text Scanner</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.0/tesseract.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --panel: #111118;
+    --border: #1e1e2e;
+    --accent: #00ffcc;
+    --accent2: #ff4d6d;
+    --accent3: #7b61ff;
+    --text: #e8e8f0;
+    --muted: #555570;
+    --scan: #00ffcc33;
+    --mono: 'Space Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+  }
+
+  /* GRID BG */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.4;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* HEADER */
+  header {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 32px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(10,10,15,0.9);
+    backdrop-filter: blur(12px);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 36px; height: 36px;
+    border: 2px solid var(--accent);
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .logo-icon::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent);
+    animation: scan-logo 1.8s ease-in-out infinite;
+  }
+  @keyframes scan-logo {
+    0%,100% { transform: translateY(0); opacity: 1; }
+    50% { transform: translateY(-30px); opacity: 0.3; }
+  }
+  .logo-icon svg { width: 20px; height: 20px; color: var(--accent); }
+
+  .logo h1 {
+    font-size: 1.1rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text);
+  }
+  .logo span { color: var(--accent); }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--muted);
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: var(--panel);
+  }
+  .dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--muted);
+    transition: background 0.3s;
+  }
+  .dot.live { background: var(--accent); box-shadow: 0 0 8px var(--accent); animation: pulse-dot 1.5s infinite; }
+  .dot.busy { background: #f5a623; box-shadow: 0 0 8px #f5a623; animation: pulse-dot 0.6s infinite; }
+  .dot.done { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+  .dot.err  { background: var(--accent2); box-shadow: 0 0 8px var(--accent2); }
+  @keyframes pulse-dot { 0%,100%{ opacity:1; } 50%{ opacity:0.3; } }
+
+  /* MAIN LAYOUT */
+  main {
+    position: relative;
+    z-index: 5;
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    min-height: 0;
+  }
+
+  /* CAMERA PANEL */
+  .cam-panel {
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 24px;
+    gap: 16px;
+  }
+
+  .panel-label {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .panel-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .video-wrapper {
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: #000;
+    aspect-ratio: 4/3;
+  }
+
+  video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  /* Scan line overlay */
+  .scan-line {
+    position: absolute;
+    left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    top: 0;
+    pointer-events: none;
+    opacity: 0;
+    filter: blur(1px);
+  }
+  .scan-line.active {
+    opacity: 1;
+    animation: scan-move 2s linear infinite;
+  }
+  @keyframes scan-move {
+    0% { top: 0%; }
+    100% { top: 100%; }
+  }
+
+  /* Corner markers */
+  .corners {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .corner {
+    position: absolute;
+    width: 18px; height: 18px;
+    border-color: var(--accent);
+    border-style: solid;
+    opacity: 0.7;
+  }
+  .corner.tl { top: 8px; left: 8px; border-width: 2px 0 0 2px; }
+  .corner.tr { top: 8px; right: 8px; border-width: 2px 2px 0 0; }
+  .corner.bl { bottom: 8px; left: 8px; border-width: 0 0 2px 2px; }
+  .corner.br { bottom: 8px; right: 8px; border-width: 0 2px 2px 0; }
+
+  /* CAM PLACEHOLDER */
+  .cam-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background: #050508;
+  }
+  .cam-placeholder svg { color: var(--muted); width: 48px; height: 48px; opacity: 0.4; }
+  .cam-placeholder p { font-size: 0.78rem; color: var(--muted); font-family: var(--mono); }
+
+  /* CONTROLS */
+  .controls {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    flex: 1;
+    min-width: 100px;
+    padding: 11px 18px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.18s;
+    background: var(--panel);
+    color: var(--text);
+    position: relative;
+    overflow: hidden;
+  }
+  .btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: currentColor;
+    opacity: 0;
+    transition: opacity 0.18s;
+  }
+  .btn:hover::before { opacity: 0.07; }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+    font-weight: 700;
+  }
+  .btn-primary:hover { box-shadow: 0 0 24px var(--accent)44; }
+
+  .btn-danger {
+    border-color: var(--accent2);
+    color: var(--accent2);
+  }
+
+  /* OPTIONS ROW */
+  .options-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .select-wrap {
+    position: relative;
+    flex: 1;
+  }
+  .select-wrap select {
+    width: 100%;
+    appearance: none;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 32px 10px 12px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    cursor: pointer;
+  }
+  .select-wrap::after {
+    content: '▾';
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    pointer-events: none;
+    font-size: 0.8rem;
+  }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--muted);
+  }
+  .toggle {
+    position: relative;
+    width: 36px; height: 20px;
+  }
+  .toggle input { display: none; }
+  .toggle-track {
+    position: absolute;
+    inset: 0;
+    background: var(--border);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .toggle input:checked ~ .toggle-track { background: var(--accent); }
+  .toggle-thumb {
+    position: absolute;
+    top: 3px; left: 3px;
+    width: 14px; height: 14px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.2s;
+    pointer-events: none;
+  }
+  .toggle input:checked ~ .toggle-thumb { transform: translateX(16px); }
+
+  /* CONFIDENCE METER */
+  .conf-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    color: var(--muted);
+  }
+  .conf-track {
+    flex: 1;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .conf-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent3), var(--accent));
+    border-radius: 2px;
+    transition: width 0.5s ease;
+  }
+  .conf-val { min-width: 32px; text-align: right; color: var(--text); }
+
+  /* PROGRESS */
+  .progress-wrap {
+    display: none;
+    gap: 10px;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    color: var(--muted);
+  }
+  .progress-wrap.show { display: flex; }
+  .progress-track {
+    flex: 1;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent3), var(--accent));
+    border-radius: 2px;
+    transition: width 0.3s ease;
+  }
+
+  /* OUTPUT PANEL */
+  .out-panel {
+    display: flex;
+    flex-direction: column;
+    padding: 24px;
+    gap: 16px;
+    overflow: hidden;
+  }
+
+  .out-toolbar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .out-toolbar .panel-label { flex: 1; }
+
+  .icon-btn {
+    width: 32px; height: 32px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel);
+    color: var(--muted);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: all 0.18s;
+    font-size: 0.75rem;
+  }
+  .icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .text-output {
+    flex: 1;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    overflow-y: auto;
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    line-height: 1.75;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-word;
+    position: relative;
+    min-height: 200px;
+    resize: none;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .text-output:focus { border-color: var(--accent3); }
+
+  .placeholder-text {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 0.75rem;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+  .placeholder-text svg { width: 36px; height: 36px; opacity: 0.3; }
+
+  /* WORDS HIGHLIGHT */
+  .word-highlight {
+    display: inline;
+    background: var(--accent)22;
+    border-radius: 2px;
+    padding: 0 2px;
+    transition: background 0.2s;
+  }
+  .word-highlight:hover {
+    background: var(--accent)55;
+    cursor: pointer;
+  }
+
+  /* STATS BAR */
+  .stats-bar {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 12px 16px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .stat-val {
+    font-family: var(--mono);
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .stat-label {
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  /* HISTORY CHIPS */
+  .history-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .history-chips {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .chip {
+    padding: 4px 10px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .chip:hover { border-color: var(--accent3); color: var(--text); }
+
+  /* TOAST */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    z-index: 100;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    pointer-events: none;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* FOOTER */
+  footer {
+    position: relative;
+    z-index: 10;
+    border-top: 1px solid var(--border);
+    padding: 10px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    color: var(--muted);
+  }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* RESPONSIVE */
+  @media (max-width: 768px) {
+    main { grid-template-columns: 1fr; }
+    .cam-panel { border-right: none; border-bottom: 1px solid var(--border); }
+  }
+
+  /* SHIMMER on loading */
+  @keyframes shimmer {
+    0% { background-position: -400px 0; }
+    100% { background-position: 400px 0; }
+  }
+  .shimmer {
+    background: linear-gradient(90deg, var(--panel) 25%, var(--border) 50%, var(--panel) 75%);
+    background-size: 400px 100%;
+    animation: shimmer 1.4s infinite;
+  }
+
+  /* CAPTURE FLASH */
+  .flash {
+    position: fixed;
+    inset: 0;
+    background: #fff;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 200;
+    animation: none;
+  }
+  .flash.snap {
+    animation: flash-anim 0.35s ease-out forwards;
+  }
+  @keyframes flash-anim {
+    0% { opacity: 0.6; }
+    100% { opacity: 0; }
+  }
+
+  /* MODE TABS */
+  .mode-tabs {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .mode-tab {
+    flex: 1;
+    padding: 8px 12px;
+    background: var(--panel);
+    border: none;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    cursor: pointer;
+    transition: all 0.18s;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-right: 1px solid var(--border);
+  }
+  .mode-tab:last-child { border-right: none; }
+  .mode-tab.active { background: var(--accent); color: #000; font-weight: 700; }
+
+  /* LIVE OCR indicator */
+  .live-badge {
+    display: none;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    color: var(--accent2);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .live-badge.show { display: flex; }
+  .live-badge-dot {
+    width: 6px; height: 6px;
+    background: var(--accent2);
+    border-radius: 50%;
+    animation: pulse-dot 0.5s infinite;
+  }
+</style>
+</head>
+<body>
+
+<div class="flash" id="flash"></div>
+<div class="toast" id="toast">Copied to clipboard!</div>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="18" height="18" rx="2"/>
+        <path d="M7 8h2M7 12h10M7 16h6"/>
+      </svg>
+    </div>
+    <h1>OCR<span>CAM</span></h1>
+  </div>
+  <div style="display:flex;gap:12px;align-items:center">
+    <div class="live-badge" id="liveBadge">
+      <div class="live-badge-dot"></div>
+      Live OCR
+    </div>
+    <div class="status-pill">
+      <div class="dot" id="statusDot"></div>
+      <span id="statusText">Initializing…</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- CAMERA SIDE -->
+  <div class="cam-panel">
+    <div class="panel-label">Camera Input</div>
+
+    <div class="video-wrapper" id="videoWrapper">
+      <video id="video" autoplay muted playsinline></video>
+      <canvas id="canvas" style="display:none"></canvas>
+      <div class="scan-line" id="scanLine"></div>
+      <div class="corners">
+        <div class="corner tl"></div>
+        <div class="corner tr"></div>
+        <div class="corner bl"></div>
+        <div class="corner br"></div>
+      </div>
+      <div class="cam-placeholder" id="camPlaceholder">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M23 7l-7 5 7 5V7z"/>
+          <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+        </svg>
+        <p>Press START to activate camera</p>
+      </div>
+    </div>
+
+    <div class="mode-tabs">
+      <button class="mode-tab active" id="tabSnap" onclick="setMode('snap')">📸 Snap</button>
+      <button class="mode-tab" id="tabLive" onclick="setMode('live')">⚡ Live</button>
+      <button class="mode-tab" id="tabAuto" onclick="setMode('auto')">🔁 Auto</button>
+    </div>
+
+    <div class="controls">
+      <button class="btn btn-primary" id="startBtn" onclick="startCamera()">▶ Start Camera</button>
+      <button class="btn" id="captureBtn" onclick="captureAndOCR()" disabled>📷 Capture & Scan</button>
+      <button class="btn btn-danger" id="stopBtn" onclick="stopCamera()" disabled>■ Stop</button>
+    </div>
+
+    <div class="options-row">
+      <div class="select-wrap">
+        <select id="langSelect">
+          <option value="eng">English</option>
+          <option value="hin">Hindi</option>
+          <option value="fra">French</option>
+          <option value="deu">German</option>
+          <option value="spa">Spanish</option>
+          <option value="chi_sim">Chinese (Simplified)</option>
+          <option value="jpn">Japanese</option>
+          <option value="ara">Arabic</option>
+          <option value="por">Portuguese</option>
+          <option value="rus">Russian</option>
+        </select>
+      </div>
+      <div class="select-wrap">
+        <select id="psmSelect">
+          <option value="3">Auto Layout</option>
+          <option value="6">Single Block</option>
+          <option value="7">Single Line</option>
+          <option value="8">Single Word</option>
+          <option value="11">Sparse Text</option>
+          <option value="12">Sparse + OSD</option>
+          <option value="13">Raw Line</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="options-row">
+      <div class="toggle-row">
+        <label class="toggle">
+          <input type="checkbox" id="enhanceToggle" checked>
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+        Enhance Image
+      </div>
+      <div class="toggle-row">
+        <label class="toggle">
+          <input type="checkbox" id="grayscaleToggle" checked>
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+        Grayscale
+      </div>
+      <div class="toggle-row">
+        <label class="toggle">
+          <input type="checkbox" id="highlightToggle" checked>
+          <div class="toggle-track"></div>
+          <div class="toggle-thumb"></div>
+        </label>
+        Highlight Words
+      </div>
+    </div>
+
+    <div class="progress-wrap" id="progressWrap">
+      <span id="progressLabel">Processing…</span>
+      <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+      <span id="progressPct">0%</span>
+    </div>
+
+    <div class="conf-bar">
+      <span>Confidence</span>
+      <div class="conf-track"><div class="conf-fill" id="confFill"></div></div>
+      <span class="conf-val" id="confVal">—</span>
+    </div>
+
+    <div class="stats-bar" id="statsBar">
+      <div class="stat"><div class="stat-val" id="wordCount">0</div><div class="stat-label">Words</div></div>
+      <div class="stat"><div class="stat-val" id="charCount">0</div><div class="stat-label">Chars</div></div>
+      <div class="stat"><div class="stat-val" id="lineCount">0</div><div class="stat-label">Lines</div></div>
+      <div class="stat"><div class="stat-val" id="scanTime">—</div><div class="stat-label">Scan Time</div></div>
+      <div class="stat"><div class="stat-val" id="scanCount">0</div><div class="stat-label">Scans</div></div>
+    </div>
+  </div>
+
+  <!-- OUTPUT SIDE -->
+  <div class="out-panel">
+    <div class="out-toolbar">
+      <div class="panel-label">Extracted Text</div>
+      <button class="icon-btn" title="Copy text" onclick="copyText()">⎘</button>
+      <button class="icon-btn" title="Download .txt" onclick="downloadText()">↓</button>
+      <button class="icon-btn" title="Clear output" onclick="clearOutput()">✕</button>
+    </div>
+
+    <div class="text-output" id="textOutput" contenteditable="true" spellcheck="false">
+      <div class="placeholder-text" id="placeholder">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+          <polyline points="10 9 9 9 8 9"/>
+        </svg>
+        <span>Scanned text will appear here</span>
+        <span style="font-size:0.6rem;opacity:0.5">Start camera → Capture → See results</span>
+      </div>
+    </div>
+
+    <div class="history-section">
+      <div class="panel-label">Recent Scans</div>
+      <div class="history-chips" id="historyChips">
+        <span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted)">No scans yet</span>
+      </div>
+    </div>
+
+    <!-- Preview canvas for enhanced image -->
+    <div class="panel-label">Processed Frame</div>
+    <canvas id="previewCanvas" style="width:100%;border-radius:8px;border:1px solid var(--border);background:#000;aspect-ratio:4/3;object-fit:contain;display:block;"></canvas>
+  </div>
+</main>
+
+<footer>
+  <span>OCRCAM v1.0 — 100% Offline · Powered by Tesseract.js</span>
+  <span id="footerInfo">Workers: Idle</span>
+</footer>
+
+<script>
+// ─────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────
+let stream = null;
+let worker = null;
+let isProcessing = false;
+let mode = 'snap';
+let liveInterval = null;
+let autoInterval = null;
+let totalScans = 0;
+let history = [];
+let workerReady = false;
+
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const previewCanvas = document.getElementById('previewCanvas');
+const ctx = canvas.getContext('2d');
+const pCtx = previewCanvas.getContext('2d');
+
+// ─────────────────────────────────────────────
+// STATUS HELPERS
+// ─────────────────────────────────────────────
+function setStatus(text, state = '') {
+  document.getElementById('statusText').textContent = text;
+  const dot = document.getElementById('statusDot');
+  dot.className = 'dot' + (state ? ' ' + state : '');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function setProgress(pct, label = '') {
+  const wrap = document.getElementById('progressWrap');
+  const fill = document.getElementById('progressFill');
+  const pctEl = document.getElementById('progressPct');
+  const labelEl = document.getElementById('progressLabel');
+  if (pct >= 0) {
+    wrap.classList.add('show');
+    fill.style.width = pct + '%';
+    pctEl.textContent = Math.round(pct) + '%';
+    if (label) labelEl.textContent = label;
+  } else {
+    wrap.classList.remove('show');
+    fill.style.width = '0%';
+  }
+}
+
+function flash() {
+  const el = document.getElementById('flash');
+  el.classList.remove('snap');
+  void el.offsetWidth;
+  el.classList.add('snap');
+}
+
+// ─────────────────────────────────────────────
+// INIT TESSERACT WORKER
+// ─────────────────────────────────────────────
+async function initWorker() {
+  setStatus('Loading OCR engine…', '');
+  setProgress(5, 'Loading Tesseract…');
+  try {
+    worker = await Tesseract.createWorker(
+      document.getElementById('langSelect').value,
+      1,
+      {
+        logger: m => {
+          if (m.status === 'loading tesseract core') setProgress(10, 'Loading core…');
+          if (m.status === 'initializing tesseract') setProgress(25, 'Init engine…');
+          if (m.status === 'loading language traineddata') setProgress(40, 'Loading lang data…');
+          if (m.status === 'initializing api') setProgress(60, 'Initializing API…');
+          if (m.status === 'recognizing text') setProgress(60 + m.progress * 35, 'Recognizing…');
+        }
+      }
+    );
+    await worker.setParameters({
+      tessedit_pageseg_mode: parseInt(document.getElementById('psmSelect').value),
+    });
+    workerReady = true;
+    setStatus('Ready', 'live');
+    setProgress(-1);
+    document.getElementById('footerInfo').textContent = 'Worker: Ready · Lang: ' + document.getElementById('langSelect').value;
+    return true;
+  } catch (e) {
+    setStatus('Engine error', 'err');
+    setProgress(-1);
+    console.error(e);
+    return false;
+  }
+}
+
+// Reinit worker when lang/psm changes
+async function reinitWorker() {
+  if (worker) {
+    await worker.terminate();
+    worker = null;
+    workerReady = false;
+  }
+  await initWorker();
+}
+
+document.getElementById('langSelect').addEventListener('change', reinitWorker);
+document.getElementById('psmSelect').addEventListener('change', async () => {
+  if (worker && workerReady) {
+    await worker.setParameters({
+      tessedit_pageseg_mode: parseInt(document.getElementById('psmSelect').value),
+    });
+  }
+});
+
+// ─────────────────────────────────────────────
+// CAMERA
+// ─────────────────────────────────────────────
+async function startCamera() {
+  try {
+    setStatus('Requesting camera…', '');
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        facingMode: 'environment',
+        frameRate: { ideal: 30 }
+      }
+    });
+    video.srcObject = stream;
+    await video.play();
+
+    document.getElementById('camPlaceholder').style.display = 'none';
+    document.getElementById('startBtn').disabled = true;
+    document.getElementById('captureBtn').disabled = false;
+    document.getElementById('stopBtn').disabled = false;
+
+    if (!workerReady) await initWorker();
+    else setStatus('Ready', 'live');
+
+    setModeBehavior();
+    setStatus('Camera live', 'live');
+  } catch (e) {
+    setStatus('Camera error: ' + e.message, 'err');
+    alert('Camera access denied or unavailable.\n\nMake sure your USB webcam is connected and give browser permission.');
+  }
+}
+
+function stopCamera() {
+  if (stream) {
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+  }
+  video.srcObject = null;
+  document.getElementById('camPlaceholder').style.display = 'flex';
+  document.getElementById('startBtn').disabled = false;
+  document.getElementById('captureBtn').disabled = true;
+  document.getElementById('stopBtn').disabled = true;
+  clearIntervals();
+  document.getElementById('scanLine').classList.remove('active');
+  document.getElementById('liveBadge').classList.remove('show');
+  setStatus('Camera off', '');
+}
+
+// ─────────────────────────────────────────────
+// MODE
+// ─────────────────────────────────────────────
+function setMode(m) {
+  mode = m;
+  ['snap','live','auto'].forEach(id => {
+    document.getElementById('tab' + id.charAt(0).toUpperCase() + id.slice(1))
+      .classList.toggle('active', id === m);
+  });
+  clearIntervals();
+  document.getElementById('liveBadge').classList.remove('show');
+  document.getElementById('scanLine').classList.remove('active');
+
+  if (stream) setModeBehavior();
+}
+
+function setModeBehavior() {
+  clearIntervals();
+  if (mode === 'live') {
+    document.getElementById('liveBadge').classList.add('show');
+    document.getElementById('scanLine').classList.add('active');
+    liveInterval = setInterval(() => { if (!isProcessing) captureAndOCR(true); }, 2500);
+  } else if (mode === 'auto') {
+    document.getElementById('scanLine').classList.add('active');
+    autoInterval = setInterval(() => { if (!isProcessing) captureAndOCR(true); }, 5000);
+  }
+}
+
+function clearIntervals() {
+  if (liveInterval) { clearInterval(liveInterval); liveInterval = null; }
+  if (autoInterval) { clearInterval(autoInterval); autoInterval = null; }
+}
+
+// ─────────────────────────────────────────────
+// IMAGE PROCESSING (enhancement)
+// ─────────────────────────────────────────────
+function enhanceFrame() {
+  const w = video.videoWidth || 640;
+  const h = video.videoHeight || 480;
+  canvas.width = w;
+  canvas.height = h;
+  previewCanvas.width = w;
+  previewCanvas.height = h;
+
+  ctx.drawImage(video, 0, 0, w, h);
+
+  const useGray = document.getElementById('grayscaleToggle').checked;
+  const useEnhance = document.getElementById('enhanceToggle').checked;
+
+  if (!useGray && !useEnhance) {
+    // Raw frame
+    pCtx.drawImage(canvas, 0, 0);
+    return canvas;
+  }
+
+  let imageData = ctx.getImageData(0, 0, w, h);
+  let data = imageData.data;
+
+  // Grayscale
+  if (useGray) {
+    for (let i = 0; i < data.length; i += 4) {
+      const gray = 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2];
+      data[i] = data[i+1] = data[i+2] = gray;
+    }
+  }
+
+  if (useEnhance) {
+    // Contrast + sharpness
+    const contrast = 1.6;
+    const brightness = 10;
+    for (let i = 0; i < data.length; i += 4) {
+      data[i]   = Math.min(255, Math.max(0, (data[i]   - 128) * contrast + 128 + brightness));
+      data[i+1] = Math.min(255, Math.max(0, (data[i+1] - 128) * contrast + 128 + brightness));
+      data[i+2] = Math.min(255, Math.max(0, (data[i+2] - 128) * contrast + 128 + brightness));
+    }
+
+    // Adaptive threshold for binarization (optional but helps a lot)
+    if (useGray) {
+      // Simple Otsu-like threshold
+      const hist = new Array(256).fill(0);
+      for (let i = 0; i < data.length; i += 4) hist[data[i]]++;
+      const total = w * h;
+      let sum = 0;
+      for (let i = 0; i < 256; i++) sum += i * hist[i];
+      let wB = 0, wF = 0, sumB = 0, maxVar = 0, threshold = 128;
+      for (let t = 0; t < 256; t++) {
+        wB += hist[t];
+        if (!wB) continue;
+        wF = total - wB;
+        if (!wF) break;
+        sumB += t * hist[t];
+        const mB = sumB / wB, mF = (sum - sumB) / wF;
+        const between = wB * wF * (mB - mF) ** 2;
+        if (between > maxVar) { maxVar = between; threshold = t; }
+      }
+      for (let i = 0; i < data.length; i += 4) {
+        const v = data[i] >= threshold ? 255 : 0;
+        data[i] = data[i+1] = data[i+2] = v;
+      }
+    }
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+  pCtx.drawImage(canvas, 0, 0);
+
+  return canvas;
+}
+
+// ─────────────────────────────────────────────
+// OCR
+// ─────────────────────────────────────────────
+async function captureAndOCR(silent = false) {
+  if (!stream || !workerReady || isProcessing) return;
+  isProcessing = true;
+
+  if (!silent) flash();
+  setStatus('Scanning…', 'busy');
+  setProgress(5, 'Capturing frame…');
+
+  const t0 = performance.now();
+
+  try {
+    const processedCanvas = enhanceFrame();
+    setProgress(15, 'Processing image…');
+
+    // Update PSM in case user changed it
+    await worker.setParameters({
+      tessedit_pageseg_mode: parseInt(document.getElementById('psmSelect').value),
+    });
+
+    setProgress(20, 'Sending to OCR…');
+    const result = await worker.recognize(processedCanvas);
+    const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
+
+    const raw = result.data.text;
+    const confidence = result.data.confidence;
+    const words = result.data.words || [];
+
+    // Update confidence
+    const confPct = Math.round(confidence);
+    document.getElementById('confFill').style.width = confPct + '%';
+    document.getElementById('confVal').textContent = confPct + '%';
+
+    // Stats
+    const wordCount = raw.trim().split(/\s+/).filter(Boolean).length;
+    const charCount = raw.replace(/\s/g, '').length;
+    const lineCount = raw.trim().split('\n').filter(Boolean).length;
+    totalScans++;
+
+    document.getElementById('wordCount').textContent = wordCount;
+    document.getElementById('charCount').textContent = charCount;
+    document.getElementById('lineCount').textContent = lineCount;
+    document.getElementById('scanTime').textContent = elapsed + 's';
+    document.getElementById('scanCount').textContent = totalScans;
+
+    // Display text
+    displayText(raw, words);
+    addToHistory(raw);
+
+    setStatus('Done · ' + confPct + '% conf', 'done');
+    setProgress(100, 'Complete!');
+    setTimeout(() => setProgress(-1), 800);
+
+  } catch (e) {
+    setStatus('OCR failed', 'err');
+    setProgress(-1);
+    console.error(e);
+  } finally {
+    isProcessing = false;
+    if (stream) setTimeout(() => setStatus('Ready', 'live'), 2000);
+  }
+}
+
+// ─────────────────────────────────────────────
+// DISPLAY
+// ─────────────────────────────────────────────
+function displayText(raw, words) {
+  const output = document.getElementById('textOutput');
+  const placeholder = document.getElementById('placeholder');
+  placeholder.style.display = 'none';
+
+  const useHighlight = document.getElementById('highlightToggle').checked;
+
+  if (!useHighlight || !words || words.length === 0) {
+    output.textContent = raw;
+    return;
+  }
+
+  // Build highlighted HTML from word-level data
+  output.innerHTML = '';
+
+  // Group into lines
+  const lines = raw.split('\n');
+  lines.forEach((line, li) => {
+    const lineEl = document.createElement('div');
+    if (line.trim() === '') {
+      lineEl.innerHTML = '&nbsp;';
+    } else {
+      const lineWords = line.split(/(\s+)/);
+      lineWords.forEach(part => {
+        if (/\s+/.test(part)) {
+          lineEl.appendChild(document.createTextNode(part));
+        } else if (part) {
+          const span = document.createElement('span');
+          span.className = 'word-highlight';
+          span.textContent = part;
+          span.title = 'Click to copy word';
+          span.onclick = () => {
+            navigator.clipboard.writeText(part).then(() => showToast('Copied: ' + part));
+          };
+          lineEl.appendChild(span);
+        }
+      });
+    }
+    output.appendChild(lineEl);
+  });
+}
+
+// ─────────────────────────────────────────────
+// HISTORY
+// ─────────────────────────────────────────────
+function addToHistory(text) {
+  const preview = text.trim().slice(0, 40).replace(/\n/g, ' ');
+  if (!preview) return;
+  history.unshift({ text, preview, time: Date.now() });
+  if (history.length > 8) history.pop();
+  renderHistory();
+}
+
+function renderHistory() {
+  const chips = document.getElementById('historyChips');
+  if (history.length === 0) {
+    chips.innerHTML = '<span style="font-family:var(--mono);font-size:0.65rem;color:var(--muted)">No scans yet</span>';
+    return;
+  }
+  chips.innerHTML = '';
+  history.forEach((h, i) => {
+    const c = document.createElement('button');
+    c.className = 'chip';
+    c.textContent = h.preview;
+    c.title = h.text;
+    c.onclick = () => {
+      const output = document.getElementById('textOutput');
+      document.getElementById('placeholder').style.display = 'none';
+      output.textContent = h.text;
+    };
+    chips.appendChild(c);
+  });
+}
+
+// ─────────────────────────────────────────────
+// UTILITIES
+// ─────────────────────────────────────────────
+function copyText() {
+  const output = document.getElementById('textOutput');
+  const text = output.innerText || output.textContent;
+  if (!text.trim()) { showToast('Nothing to copy!'); return; }
+  navigator.clipboard.writeText(text).then(() => showToast('✓ Copied to clipboard!'));
+}
+
+function downloadText() {
+  const output = document.getElementById('textOutput');
+  const text = output.innerText || output.textContent;
+  if (!text.trim()) { showToast('Nothing to download!'); return; }
+  const blob = new Blob([text], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'ocr_result_' + Date.now() + '.txt';
+  a.click();
+  showToast('✓ Downloaded!');
+}
+
+function clearOutput() {
+  const output = document.getElementById('textOutput');
+  output.innerHTML = '';
+  document.getElementById('placeholder').style.display = 'flex';
+  output.appendChild(document.getElementById('placeholder'));
+  document.getElementById('confFill').style.width = '0%';
+  document.getElementById('confVal').textContent = '—';
+  document.getElementById('wordCount').textContent = '0';
+  document.getElementById('charCount').textContent = '0';
+  document.getElementById('lineCount').textContent = '0';
+  document.getElementById('scanTime').textContent = '—';
+}
+
+// ─────────────────────────────────────────────
+// KEYBOARD SHORTCUTS
+// ─────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
+  if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); captureAndOCR(); }
+  if (e.code === 'KeyC' && e.ctrlKey) copyText();
+  if (e.code === 'KeyL') setMode(mode === 'live' ? 'snap' : 'live');
+});
+
+// ─────────────────────────────────────────────
+// DRAG & DROP IMAGE SUPPORT
+// ─────────────────────────────────────────────
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', async e => {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
+  if (!file || !file.type.startsWith('image/')) return;
+  setStatus('Processing dropped image…', 'busy');
+  setProgress(10, 'Loading image…');
+  const img = new Image();
+  img.onload = async () => {
+    canvas.width = img.width;
+    canvas.height = img.height;
+    previewCanvas.width = img.width;
+    previewCanvas.height = img.height;
+    ctx.drawImage(img, 0, 0);
+    pCtx.drawImage(img, 0, 0);
+
+    if (!workerReady) await initWorker();
+    isProcessing = true;
+    setProgress(30, 'Running OCR…');
+    const t0 = performance.now();
+    try {
+      const result = await worker.recognize(canvas);
+      const elapsed = ((performance.now() - t0)/1000).toFixed(2);
+      const { text, confidence, words } = result.data;
+      document.getElementById('confFill').style.width = Math.round(confidence) + '%';
+      document.getElementById('confVal').textContent = Math.round(confidence) + '%';
+      const wc = text.trim().split(/\s+/).filter(Boolean).length;
+      document.getElementById('wordCount').textContent = wc;
+      document.getElementById('charCount').textContent = text.replace(/\s/g,'').length;
+      document.getElementById('lineCount').textContent = text.split('\n').filter(Boolean).length;
+      document.getElementById('scanTime').textContent = elapsed + 's';
+      totalScans++;
+      document.getElementById('scanCount').textContent = totalScans;
+      displayText(text, words);
+      addToHistory(text);
+      setStatus('Done', 'done');
+      setProgress(-1);
+    } catch(ex) {
+      setStatus('Error', 'err');
+      setProgress(-1);
+    } finally {
+      isProcessing = false;
+    }
+  };
+  img.src = URL.createObjectURL(file);
+});
+
+// ─────────────────────────────────────────────
+// BOOT
+// ─────────────────────────────────────────────
+(async () => {
+  setStatus('Loading engine…', '');
+  await initWorker();
+})();
+</script>
+</body>
+</html>

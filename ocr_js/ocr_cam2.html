@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>OCR CAM — Offline Text Scanner</title>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d0d0d;
+    color: #e0e0e0;
+    font-family: 'Segoe UI', sans-serif;
+    font-size: 13px;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  #topbar {
+    background: #111;
+    border-bottom: 1px solid #2a2a2a;
+    padding: 6px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  #topbar span { color: #888; font-size: 11px; }
+  #topbar strong { color: #0f9; font-size: 12px; }
+
+  #main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* LEFT PANEL */
+  #left {
+    width: 55%;
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+    gap: 8px;
+    border-right: 1px solid #1e1e1e;
+  }
+
+  #cam-label {
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: #555;
+  }
+
+  #video-wrapper {
+    position: relative;
+    background: #000;
+    border: 1px solid #2a2a2a;
+    border-radius: 4px;
+    overflow: hidden;
+    flex: 1;
+  }
+  #video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+  #roi-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  #roi-rect {
+    position: absolute;
+    border: 1.5px solid #0fc;
+    border-radius: 2px;
+    box-shadow: 0 0 0 1px rgba(0,255,200,0.15);
+  }
+  canvas#hidden-canvas { display: none; }
+
+  /* CONTROLS */
+  #controls {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  #cam-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  #cam-row label { color: #888; font-size: 11px; white-space: nowrap; }
+  select {
+    flex: 1;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    color: #ccc;
+    padding: 5px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+  }
+  select:focus { outline: none; border-color: #0fc; }
+
+  #mode-row {
+    display: flex;
+    gap: 6px;
+  }
+  .mode-btn {
+    flex: 1;
+    padding: 7px;
+    border: 1px solid #333;
+    background: #181818;
+    color: #888;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    text-align: center;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .mode-btn.active {
+    background: #0fc;
+    color: #000;
+    border-color: #0fc;
+    font-weight: 600;
+  }
+
+  #btn-row {
+    display: flex;
+    gap: 6px;
+  }
+  button {
+    flex: 1;
+    padding: 8px 6px;
+    border: none;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: opacity 0.15s;
+  }
+  button:disabled { opacity: 0.4; cursor: default; }
+  #btn-start  { background: #1a6b3a; color: #0f9; }
+  #btn-capture { background: #1a3a6b; color: #5ad; }
+  #btn-stop   { background: #6b1a1a; color: #f55; }
+
+  #toggle-row {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .toggle-wrap { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #888; }
+  .toggle { position: relative; width: 32px; height: 16px; }
+  .toggle input { display: none; }
+  .toggle .slider {
+    position: absolute; inset: 0;
+    background: #333; border-radius: 8px; cursor: pointer; transition: 0.2s;
+  }
+  .toggle input:checked + .slider { background: #0fc; }
+  .toggle .slider::before {
+    content: ''; position: absolute;
+    width: 12px; height: 12px; left: 2px; bottom: 2px;
+    background: #fff; border-radius: 50%; transition: 0.2s;
+  }
+  .toggle input:checked + .slider::before { transform: translateX(16px); }
+
+  #conf-row { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #666; }
+  #conf-slider { flex: 1; accent-color: #0fc; }
+  #conf-val { color: #0fc; min-width: 28px; text-align: right; }
+
+  #stats-row {
+    display: flex; gap: 16px;
+    background: #111; border: 1px solid #1e1e1e;
+    border-radius: 4px; padding: 8px 12px;
+  }
+  .stat { text-align: center; }
+  .stat .num { font-size: 20px; font-weight: 700; color: #0fc; }
+  .stat .lbl { font-size: 9px; color: #555; text-transform: uppercase; letter-spacing: 1px; }
+
+  /* RIGHT PANEL */
+  #right {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+    gap: 8px;
+    overflow: hidden;
+  }
+
+  .panel-title {
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: #555;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .panel-title .actions { display: flex; gap: 6px; }
+  .panel-title button {
+    background: #1a1a1a; border: 1px solid #333;
+    color: #888; padding: 3px 8px;
+    font-size: 10px; font-weight: 400;
+    border-radius: 3px; cursor: pointer; flex: none;
+  }
+  .panel-title button:hover { color: #ccc; border-color: #555; }
+
+  #extracted-box {
+    flex: 1;
+    background: #0a0a0a;
+    border: 1px solid #1e1e1e;
+    border-radius: 4px;
+    padding: 10px;
+    overflow-y: auto;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #d0f0d0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    min-height: 80px;
+  }
+  #extracted-box.empty { color: #333; font-style: italic; font-family: 'Segoe UI', sans-serif; }
+
+  #scanning-indicator {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    color: #0fc;
+    font-size: 11px;
+  }
+  #scanning-indicator.active { display: flex; }
+  .spin {
+    width: 14px; height: 14px;
+    border: 2px solid #0fc3;
+    border-top-color: #0fc;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  #recent-title { margin-top: 4px; }
+  #recent-list {
+    background: #0a0a0a;
+    border: 1px solid #1e1e1e;
+    border-radius: 4px;
+    overflow-y: auto;
+    max-height: 130px;
+  }
+  .recent-item {
+    padding: 6px 10px;
+    border-bottom: 1px solid #141414;
+    cursor: pointer;
+    transition: background 0.1s;
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+  }
+  .recent-item:last-child { border-bottom: none; }
+  .recent-item:hover { background: #151515; }
+  .recent-item .ri-time { color: #444; font-size: 10px; white-space: nowrap; }
+  .recent-item .ri-text { color: #8c8; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .recent-empty { padding: 10px; color: #333; font-style: italic; text-align: center; }
+
+  #processed-title { margin-top: 4px; }
+  #processed-wrap {
+    background: #000;
+    border: 1px solid #1e1e1e;
+    border-radius: 4px;
+    overflow: hidden;
+    height: 160px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #processed-img {
+    max-width: 100%; max-height: 100%;
+    object-fit: contain;
+    display: none;
+  }
+  #processed-placeholder { color: #2a2a2a; font-size: 11px; }
+
+  #status-bar {
+    background: #0a0a0a;
+    border-top: 1px solid #1e1e1e;
+    padding: 4px 14px;
+    font-size: 10px;
+    color: #555;
+    display: flex;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <strong>OCR CAM v2.0</strong>
+  <span>— 100% Offline — Powered by Tesseract.js</span>
+  <span id="worker-status" style="margin-left:auto;">● Initializing…</span>
+</div>
+
+<div id="main">
+
+  <!-- LEFT -->
+  <div id="left">
+    <div id="cam-label">Camera Input</div>
+
+    <div id="video-wrapper">
+      <video id="video" autoplay playsinline muted></video>
+      <div id="roi-overlay">
+        <div id="roi-rect"></div>
+      </div>
+    </div>
+
+    <canvas id="hidden-canvas"></canvas>
+
+    <div id="controls">
+
+      <!-- Camera selector -->
+      <div id="cam-row">
+        <label>Camera:</label>
+        <select id="cam-select">
+          <option value="">— click Refresh —</option>
+        </select>
+        <button id="btn-refresh-cam" style="flex:none;padding:6px 10px;background:#1a1a2a;color:#5af;border:1px solid #335;border-radius:4px;font-size:11px;font-weight:400;">↺ Refresh</button>
+      </div>
+
+      <!-- Mode -->
+      <div id="mode-row">
+        <div class="mode-btn" id="mode-snap" onclick="setMode('snap')">📸 SNAP</div>
+        <div class="mode-btn active" id="mode-live" onclick="setMode('live')">● LIVE</div>
+        <div class="mode-btn" id="mode-auto" onclick="setMode('auto')">⚡ AUTO</div>
+      </div>
+
+      <!-- Action buttons -->
+      <div id="btn-row">
+        <button id="btn-start" onclick="startCamera()">▶ START CAMERA</button>
+        <button id="btn-capture" onclick="captureAndScan()" disabled>📷 CAPTURE &amp; SCAN</button>
+        <button id="btn-stop" onclick="stopCamera()" disabled>■ STOP</button>
+      </div>
+
+      <!-- Toggles -->
+      <div id="toggle-row">
+        <label class="toggle-wrap">
+          <label class="toggle"><input type="checkbox" id="tog-enhance" checked><span class="slider"></span></label>
+          Enhance Image
+        </label>
+        <label class="toggle-wrap">
+          <label class="toggle"><input type="checkbox" id="tog-gray" checked><span class="slider"></span></label>
+          Grayscale
+        </label>
+        <label class="toggle-wrap">
+          <label class="toggle"><input type="checkbox" id="tog-highlight"><span class="slider"></span></label>
+          Highlight Words
+        </label>
+      </div>
+
+      <!-- Confidence -->
+      <div id="conf-row">
+        Confidence threshold:
+        <input type="range" id="conf-slider" min="0" max="100" value="55">
+        <span id="conf-val">55%</span>
+      </div>
+      <!-- Min word length -->
+      <div id="conf-row">
+        Min word length:
+        <input type="range" id="minlen-slider" min="1" max="8" value="2">
+        <span id="minlen-val">2 chars</span>
+      </div>
+
+      <!-- Stats -->
+      <div id="stats-row">
+        <div class="stat"><div class="num" id="stat-words">0</div><div class="lbl">Words</div></div>
+        <div class="stat"><div class="num" id="stat-chars">0</div><div class="lbl">Chars</div></div>
+        <div class="stat"><div class="num" id="stat-lines">0</div><div class="lbl">Lines</div></div>
+        <div class="stat"><div class="num" id="stat-time">0s</div><div class="lbl">Scan Time</div></div>
+        <div class="stat"><div class="num" id="stat-scans">0</div><div class="lbl">Scans</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT -->
+  <div id="right">
+
+    <div class="panel-title">
+      Extracted Text
+      <div class="actions">
+        <button onclick="copyText()">Copy</button>
+        <button onclick="clearText()">Clear</button>
+      </div>
+    </div>
+    <div id="scanning-indicator"><div class="spin"></div> Scanning…</div>
+    <div id="extracted-box" class="empty">No text scanned yet. Start the camera and press CAPTURE &amp; SCAN.</div>
+
+    <div class="panel-title" id="recent-title">
+      Recent Scans
+      <div class="actions"><button onclick="clearRecent()">Clear</button></div>
+    </div>
+    <div id="recent-list">
+      <div class="recent-empty">No scans yet</div>
+    </div>
+
+    <div class="panel-title" id="processed-title">Processed Frame</div>
+    <div id="processed-wrap">
+      <img id="processed-img" alt="processed frame">
+      <div id="processed-placeholder">No frame processed yet</div>
+    </div>
+
+  </div>
+</div>
+
+<div id="status-bar">
+  <span id="status-left">Ready</span>
+  <span id="status-right">Worker: Ready | Lang: eng</span>
+</div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let worker = null;
+let stream = null;
+let mode = 'live';
+let autoInterval = null;
+let scanCount = 0;
+let recentScans = [];
+const video = document.getElementById('video');
+const canvas = document.getElementById('hidden-canvas');
+const ctx = canvas.getContext('2d');
+
+// ─── WORKER INIT ─────────────────────────────────────────────────────────────
+async function initWorker() {
+  setStatus('Initializing Tesseract worker…');
+  document.getElementById('worker-status').textContent = '● Initializing…';
+  try {
+    worker = await Tesseract.createWorker('eng', 1, {
+      logger: m => {
+        if (m.status === 'recognizing text') {
+          setStatus(`Recognizing… ${Math.round(m.progress * 100)}%`);
+        }
+      }
+    });
+    document.getElementById('worker-status').textContent = '● Worker: Ready';
+    document.getElementById('status-right').textContent = 'Worker: Ready | Lang: eng';
+    setStatus('Tesseract ready. Start camera to begin.');
+  } catch(e) {
+    document.getElementById('worker-status').textContent = '● Worker: ERROR';
+    setStatus('Tesseract init failed: ' + e.message);
+  }
+}
+
+// ─── CAMERA ENUMERATION ──────────────────────────────────────────────────────
+async function refreshCameras() {
+  try {
+    // Request permission first (needed to get labels)
+    await navigator.mediaDevices.getUserMedia({ video: true }).then(s => s.getTracks().forEach(t => t.stop()));
+  } catch(e) {}
+
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const cameras = devices.filter(d => d.kind === 'videoinput');
+  const sel = document.getElementById('cam-select');
+  sel.innerHTML = '';
+
+  if (cameras.length === 0) {
+    sel.innerHTML = '<option value="">No cameras found</option>';
+    return;
+  }
+
+  cameras.forEach((cam, i) => {
+    const opt = document.createElement('option');
+    opt.value = cam.deviceId;
+    opt.textContent = cam.label || `Camera ${i}`;
+    // Prefer USB/external cameras (label usually contains 'USB' or is not 'FaceTime'/'Built-in')
+    if (cam.label && (cam.label.toLowerCase().includes('usb') || cam.label.toLowerCase().includes('webcam'))) {
+      opt.selected = true;
+    }
+    sel.appendChild(opt);
+  });
+
+  // If none marked preferred, select last (external cameras usually enumerate last)
+  if (!sel.value || sel.selectedIndex === 0) {
+    sel.selectedIndex = Math.max(0, cameras.length - 1);
+  }
+
+  setStatus(`Found ${cameras.length} camera(s).`);
+}
+
+document.getElementById('btn-refresh-cam').addEventListener('click', refreshCameras);
+document.getElementById('cam-select').addEventListener('change', () => {
+  if (stream) { stopCamera(); startCamera(); }
+});
+
+// ─── CAMERA CONTROL ──────────────────────────────────────────────────────────
+async function startCamera() {
+  const deviceId = document.getElementById('cam-select').value;
+  const constraints = {
+    video: deviceId ? { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+                    : { width: { ideal: 1280 }, height: { ideal: 720 } }
+  };
+  try {
+    stream = await navigator.mediaDevices.getUserMedia(constraints);
+    video.srcObject = stream;
+    await video.play();
+    document.getElementById('btn-capture').disabled = false;
+    document.getElementById('btn-stop').disabled = false;
+    document.getElementById('btn-start').disabled = true;
+    setStatus('Camera running.');
+    positionROI();
+    if (mode === 'auto') startAutoMode();
+    // Refresh camera list now that we have permission
+    await refreshCameras();
+  } catch(e) {
+    setStatus('Camera error: ' + e.message);
+  }
+}
+
+function stopCamera() {
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  video.srcObject = null;
+  document.getElementById('btn-capture').disabled = true;
+  document.getElementById('btn-stop').disabled = true;
+  document.getElementById('btn-start').disabled = false;
+  stopAutoMode();
+  setStatus('Camera stopped.');
+}
+
+// ─── ROI ─────────────────────────────────────────────────────────────────────
+function positionROI() {
+  const wrap = document.getElementById('video-wrapper');
+  const rect = document.getElementById('roi-rect');
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  const pad = 12;
+  rect.style.left   = pad + 'px';
+  rect.style.top    = pad + 'px';
+  rect.style.width  = (w - pad*2) + 'px';
+  rect.style.height = (h - pad*2) + 'px';
+}
+
+// ─── MODE ────────────────────────────────────────────────────────────────────
+function setMode(m) {
+  mode = m;
+  ['snap','live','auto'].forEach(id => {
+    document.getElementById('mode-' + id).classList.toggle('active', id === m);
+  });
+  if (m === 'auto' && stream) startAutoMode();
+  else stopAutoMode();
+}
+
+function startAutoMode() {
+  stopAutoMode();
+  autoInterval = setInterval(captureAndScan, 3000);
+}
+function stopAutoMode() {
+  if (autoInterval) { clearInterval(autoInterval); autoInterval = null; }
+}
+
+// ─── CAPTURE & SCAN ──────────────────────────────────────────────────────────
+async function captureAndScan() {
+  if (!worker) { setStatus('Worker not ready.'); return; }
+  if (!stream)  { setStatus('No camera stream.'); return; }
+
+  // Grab frame
+  canvas.width  = video.videoWidth  || 640;
+  canvas.height = video.videoHeight || 480;
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  // Pre-processing
+  const enhance   = document.getElementById('tog-enhance').checked;
+  const grayscale = document.getElementById('tog-gray').checked;
+
+  if (grayscale || enhance) {
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const d = imgData.data;
+    const W = canvas.width, H = canvas.height;
+
+    // Step 1: Grayscale
+    if (grayscale) {
+      for (let i = 0; i < d.length; i += 4) {
+        const g = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+        d[i] = d[i+1] = d[i+2] = g;
+      }
+    }
+
+    if (enhance) {
+      // Step 2: Unsharp mask (sharpen) — helps dark/low-contrast labels
+      // Gaussian blur approximation via box blur then subtract
+      const blurred = new Uint8ClampedArray(d.length);
+      const r = 1; // 3x3 kernel
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          let sumR = 0, sumG = 0, sumB = 0, cnt = 0;
+          for (let dy = -r; dy <= r; dy++) {
+            for (let dx = -r; dx <= r; dx++) {
+              const nx = Math.min(W-1, Math.max(0, x+dx));
+              const ny = Math.min(H-1, Math.max(0, y+dy));
+              const ni = (ny*W + nx)*4;
+              sumR += d[ni]; sumG += d[ni+1]; sumB += d[ni+2];
+              cnt++;
+            }
+          }
+          const bi = (y*W + x)*4;
+          blurred[bi]   = sumR/cnt;
+          blurred[bi+1] = sumG/cnt;
+          blurred[bi+2] = sumB/cnt;
+          blurred[bi+3] = 255;
+        }
+      }
+      // Unsharp: out = orig + amount*(orig - blur)
+      const amount = 1.5;
+      for (let i = 0; i < d.length; i += 4) {
+        d[i]   = Math.min(255, Math.max(0, d[i]   + amount*(d[i]   - blurred[i])));
+        d[i+1] = Math.min(255, Math.max(0, d[i+1] + amount*(d[i+1] - blurred[i+1])));
+        d[i+2] = Math.min(255, Math.max(0, d[i+2] + amount*(d[i+2] - blurred[i+2])));
+      }
+
+      // Step 3: Contrast stretch (mild, after sharpening)
+      let vmin = 255, vmax = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        const v = d[i]; // after grayscale all channels equal; use R
+        if (v < vmin) vmin = v;
+        if (v > vmax) vmax = v;
+      }
+      const range = vmax - vmin || 1;
+      // Only stretch if range is narrow (low contrast image)
+      if (range < 200) {
+        for (let i = 0; i < d.length; i += 4) {
+          d[i]   = Math.min(255, (d[i]   - vmin) / range * 255);
+          d[i+1] = Math.min(255, (d[i+1] - vmin) / range * 255);
+          d[i+2] = Math.min(255, (d[i+2] - vmin) / range * 255);
+        }
+      }
+    }
+
+    ctx.putImageData(imgData, 0, 0);
+  }
+
+  // Show processed frame
+  const processedDataURL = canvas.toDataURL('image/png');
+  const procImg = document.getElementById('processed-img');
+  procImg.src = processedDataURL;
+  procImg.style.display = 'block';
+  document.getElementById('processed-placeholder').style.display = 'none';
+
+  // Show scanning indicator
+  document.getElementById('scanning-indicator').classList.add('active');
+  setStatus('Scanning…');
+
+  const confThreshold = parseInt(document.getElementById('conf-slider').value);
+  const t0 = Date.now();
+
+  try {
+    const result = await worker.recognize(processedDataURL);
+    const elapsed = ((Date.now() - t0) / 1000).toFixed(2);
+
+    // ── Filter & reconstruct ──────────────────────────────────────────────
+    const confThresh  = parseInt(document.getElementById('conf-slider').value);
+    const minLen      = parseInt(document.getElementById('minlen-slider').value);
+
+    // Noise word pattern: pure symbols / single chars / known OCR junk
+    const noiseRe = /^[|©=\-_+<>{}[\]\\\/\^~`'".,;:!?@#$%&*()]+$|^\d{1,1}$/;
+
+    // Reconstruct text LINE by LINE using Tesseract line data
+    // This preserves layout and prevents everything becoming one long line
+    const lines = result.data.lines || [];
+    const cleanLines = lines.map(line => {
+      const goodWords = (line.words || [])
+        .filter(w =>
+          w.confidence >= confThresh &&
+          w.text.length >= minLen &&
+          !noiseRe.test(w.text.trim())
+        )
+        .map(w => w.text.trim());
+      return goodWords.join(' ');
+    }).filter(l => l.length > 0);
+
+    const displayText = cleanLines.join('\n');
+
+    // Stats
+    const wordCount = cleanLines.join(' ').split(/\s+/).filter(Boolean).length;
+    const charCount = displayText.replace(/\s/g, '').length;
+    const lineCount = cleanLines.length;
+
+    document.getElementById('stat-words').textContent = wordCount;
+    document.getElementById('stat-chars').textContent = charCount;
+    document.getElementById('stat-lines').textContent = lineCount;
+    document.getElementById('stat-time').textContent  = elapsed + 's';
+    document.getElementById('stat-scans').textContent = ++scanCount;
+
+    // Display extracted text
+    const box = document.getElementById('extracted-box');
+    if (displayText.length > 0) {
+      box.textContent = displayText;
+      box.classList.remove('empty');
+    } else {
+      box.textContent = '(no text detected — try lowering confidence or min word length)';
+      box.classList.add('empty');
+    }
+
+    // Highlight words overlay
+    if (document.getElementById('tog-highlight').checked && result.data.words) {
+      drawHighlights(result.data.words, confThresh, minLen);
+    }
+
+    // Recent scan
+    addRecentScan(displayText, elapsed);
+    setStatus(`Scan complete in ${elapsed}s — ${wordCount} words found.`);
+
+  } catch(e) {
+    setStatus('OCR error: ' + e.message);
+  } finally {
+    document.getElementById('scanning-indicator').classList.remove('active');
+  }
+}
+
+// ─── HIGHLIGHTS ──────────────────────────────────────────────────────────────
+function drawHighlights(words, confThresh, minLen) {
+  const noiseRe = /^[|©=\-_+<>{}[\]\\\/\^~`'".,;:!?@#$%&*()]+$|^\d{1,1}$/;
+  ctx.save();
+  words.forEach(w => {
+    if (w.confidence < confThresh) return;
+    if (w.text.length < minLen) return;
+    if (noiseRe.test(w.text.trim())) return;
+    const b = w.bbox;
+    ctx.strokeStyle = w.confidence > 75 ? '#0f9' : '#ff9';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0);
+  });
+  ctx.restore();
+  // Refresh processed frame with highlights
+  document.getElementById('processed-img').src = canvas.toDataURL('image/png');
+}
+
+// ─── RECENT SCANS ────────────────────────────────────────────────────────────
+function addRecentScan(text, elapsed) {
+  const time = new Date().toLocaleTimeString();
+  const preview = text.replace(/\n/g, ' ').substring(0, 60) + (text.length > 60 ? '…' : '');
+  recentScans.unshift({ time, preview, text, elapsed });
+  if (recentScans.length > 20) recentScans.pop();
+  renderRecent();
+}
+
+function renderRecent() {
+  const list = document.getElementById('recent-list');
+  if (recentScans.length === 0) {
+    list.innerHTML = '<div class="recent-empty">No scans yet</div>';
+    return;
+  }
+  list.innerHTML = recentScans.map((s, i) => `
+    <div class="recent-item" onclick="loadScan(${i})">
+      <span class="ri-time">${s.time} (${s.elapsed}s)</span>
+      <span class="ri-text">${s.preview || '(empty)'}</span>
+    </div>
+  `).join('');
+}
+
+function loadScan(i) {
+  const box = document.getElementById('extracted-box');
+  box.textContent = recentScans[i].text;
+  box.classList.toggle('empty', !recentScans[i].text);
+}
+
+function clearRecent() {
+  recentScans = [];
+  renderRecent();
+}
+
+// ─── UTILS ───────────────────────────────────────────────────────────────────
+function copyText() {
+  const t = document.getElementById('extracted-box').textContent;
+  if (!t || t.startsWith('No text')) return;
+  navigator.clipboard.writeText(t).then(() => setStatus('Copied to clipboard.'));
+}
+
+function clearText() {
+  const box = document.getElementById('extracted-box');
+  box.textContent = 'No text scanned yet. Start the camera and press CAPTURE & SCAN.';
+  box.classList.add('empty');
+  document.getElementById('stat-words').textContent = '0';
+  document.getElementById('stat-chars').textContent = '0';
+  document.getElementById('stat-lines').textContent = '0';
+}
+
+function setStatus(msg) {
+  document.getElementById('status-left').textContent = msg;
+}
+
+document.getElementById('conf-slider').addEventListener('input', function() {
+  document.getElementById('conf-val').textContent = this.value + '%';
+});
+document.getElementById('minlen-slider').addEventListener('input', function() {
+  document.getElementById('minlen-val').textContent = this.value + ' chars';
+});
+
+// ─── BOOT ────────────────────────────────────────────────────────────────────
+(async () => {
+  await initWorker();
+  await refreshCameras();
+})();
+</script>
+</body>
+</html>
