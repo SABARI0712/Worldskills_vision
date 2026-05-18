@@ -149,7 +149,7 @@ def main() -> int:
                 frame = pre.process(frame)
             perf_monitor.record("preprocess", time.perf_counter() - t0)
 
-            original_frame = frame.copy()
+            original_frame = frame.copy() if perspective.enabled else frame
 
             t0 = time.perf_counter()
             warped_frame = perspective.apply(frame)

@@ -218,7 +218,7 @@ class QRDetector:
     # MAIN DETECTION
     # =========================================
 
-    def detect(self, frame_bgr):
+    def detect(self, frame_bgr, upscale=False):
 
         if frame_bgr is None or frame_bgr.size == 0:
             return []
@@ -238,7 +238,7 @@ class QRDetector:
 
         detections = self._run_passes(gray, 1.0)
 
-        if detections:
+        if detections or not upscale:
             return detections
 
         # UPSCALE PASS
