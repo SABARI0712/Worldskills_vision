@@ -16,7 +16,7 @@ class CentroidTracker:
         self.velocities: OrderedDict[int, Tuple[float, float]] = OrderedDict()
         self.last_update_time = time.time()
 
-        self.max_disappeared = int(max_disappeared)
+        self.max_disappeared = max_disappeared
         self.max_distance = float(max_distance)
 
     def update(self, detections: List[Dict[str, Any]], timestamp_ms: int | None = None) -> List[Dict[str, Any]]:
@@ -112,7 +112,7 @@ class CentroidTracker:
         self.disappeared.pop(object_id, None)
         self.velocities.pop(object_id, None)
 
-    def _get_active_objects(self) -> List[Dict[str, Any]]:
+    def get_active_objects(self) -> List[Dict[str, Any]]:
         active = []
         for oid, centroid in self.objects.items():
             active.append({

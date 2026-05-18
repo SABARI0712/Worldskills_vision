@@ -52,8 +52,9 @@ def export_csv(path: str, payload: Union[Dict[str, Any], List[Dict[str, Any]]], 
         os.replace(temp_path, path)
         header_present = True
 
-    write_header = (not file_exists) or os.path.getsize(path) == 0 or not header_present
     mode = "a" if append else "w"
+    write_header = (mode == "w") or (not file_exists) or (os.path.getsize(path) == 0) or (not header_present)
+
 
     with open(path, mode, newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=fieldnames)

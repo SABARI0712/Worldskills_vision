@@ -72,7 +72,7 @@ detection:
       min_marker_area: 100
       corner_refinement: true
     color:
-      enabled: true
+      enabled: false
       min_area: 10000
       min_aspect_ratio: 0.2
       max_aspect_ratio: 5.0
@@ -89,16 +89,15 @@ detection:
       enabled: false
       min_area: 2000
     ocr:
-      enabled: false
+      enabled: true
       # Tesseract returns 0-100 confidence; this value is normalised 0-1.
-      # Real camera text typically scores 50-80% — use 0.60 for practical detection.
-      # Raise toward 0.80+ only if you get too many false readings.
-      min_confidence: 0.60
-      min_text_length: 3
-      min_area: 1500
-      max_aspect_ratio: 5.0
+      min_confidence: 0.10
+      min_text_length: 2
+      min_area: 10
+      max_aspect_ratio: 20.0
+      tesseract_config: "--psm 11"
       # Run OCR every N frames — pytesseract is slow; 5 = good balance
-      interval: 
+      interval: 5
 
 postprocess:
   # NOTE: this gates ALL postprocess sub-settings below
@@ -113,7 +112,7 @@ postprocess:
     threshold_value: 127  # for binary threshold if not using Canny
 
 mapping:
-  enabled: true
+  enabled: false
   grid:
     rows: 4
     cols: 4

@@ -11,7 +11,7 @@ class DuplicateResolver:
     _COLOR_PRIORITY = ["red1", "red2", "red", "green", "blue", "orange", "yellow", "black"]
 
     def __init__(self, iou_threshold: float = 0.45) -> None:
-        self.iou_threshold = float(iou_threshold)
+        self.iou_threshold = iou_threshold
         self.source_priority = ["aruco", "qr", "ocr", "yolo", "color", "contour"]
 
     @staticmethod
@@ -61,7 +61,7 @@ class DuplicateResolver:
         selected: List[Dict[str, Any]] = []
         for det in indexed:
             bbox = det.get("bbox_xyxy", [0, 0, 0, 0])
-            if len(bbox) != 4:
+            if not isinstance(bbox, list) or len(bbox) != 4:
                 continue
             det_label = str(det.get("label", "")).strip().lower()
             det_source = str(det.get("source", "")).strip().lower()
@@ -69,6 +69,8 @@ class DuplicateResolver:
             to_remove: List[Dict[str, Any]] = []
             for sel in selected:
                 sel_bbox = sel.get("bbox_xyxy", [0, 0, 0, 0])
+                if not isinstance(sel_bbox, list) or len(sel_bbox) != 4:
+                    continue
                 if self._iou(bbox, sel_bbox) <= self.iou_threshold:
                     continue
                 sel_label = str(sel.get("label", "")).strip().lower()

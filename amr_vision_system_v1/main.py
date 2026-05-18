@@ -22,6 +22,8 @@ from postprocessing.board_mapper import BoardMapper
 from postprocessing.perspective_transform import PerspectiveTransform
 from postprocessing.pose_estimator import PoseEstimator
 from output.formatter import export_output
+from output.json_formatter import export_json
+from output.csv_formatter import export_csv
 from output.visualizer import Visualizer
 from output.runtime_monitor import RuntimeMonitor
 from fusion.detection_fuser import DetectionFuser
@@ -103,6 +105,16 @@ def main() -> int:
     FLUSH_EVERY = int(out_cfg.get("flush_every", 500))
     perf_log_interval = int(out_cfg.get("perf_log_interval", 100))
     output_history: List[Dict[str, Any]] = []
+    if bool(out_cfg.get("write_outputs", True)):
+        if output_format == "json":
+            json_path = _resolve_path(base_dir, str(out_cfg.get("json_path", "results/output.json")))
+            export_json(json_path, [], append=False)
+            logger.info(f"Initialized empty JSON output file: {json_path}")
+        elif output_format == "csv":
+            csv_path = _resolve_path(base_dir, str(out_cfg.get("csv_path", "results/output.csv")))
+            export_csv(csv_path, [], append=False)
+            logger.info(f"Initialized CSV output file with header: {csv_path}")
+
     vis_cfg = cfg.get("visualization") or {}
     visualizer = Visualizer(vis_cfg) if bool(vis_cfg.get("enabled", True)) else None
     runtime_monitor = RuntimeMonitor() if bool(out_cfg.get("runtime_monitor", True)) else None

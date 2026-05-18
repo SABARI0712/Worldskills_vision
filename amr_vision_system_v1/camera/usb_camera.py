@@ -70,7 +70,7 @@ class USBCamera:
         except Exception:
             pass
 
-    def read(self) -> Tuple[bool, Optional["cv2.Mat"]]:
+    def read(self) -> Tuple[bool, Optional[cv2.typing.MatLike]]:
 
         if self.cap is None or not self.cap.isOpened():
 

@@ -2,119 +2,126 @@ from __future__ import annotations
 
 import cv2
 import numpy as np
-from typing import List, Dict, Any
+import time
+from typing import List, Dict, Any, Optional
 
 from ..types import Detection
 
 
 class OCRDetector:
-    def __init__(self, cfg: Dict[str, Any] = None):
+    def __init__(self, cfg: Optional[Dict[str, Any]] = None):
         self.cfg = cfg or {}
         
-        self.min_conf = float(self.cfg.get("min_confidence", 0.85))
-        self.min_text_len = int(self.cfg.get("min_text_length", 3))
-        self.min_area = int(self.cfg.get("min_area", 1500))
-        self.max_aspect_ratio = float(self.cfg.get("max_aspect_ratio", 5.0))
-        self._tesseract_config = str(self.cfg.get("tesseract_config", '--oem 3 --psm 6 -c tessedit_char_whitelist="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 "'))
+        # Base logic settings derived from ocr_working_live.py:
+        # Default to low confidence, small text, small area to let the full live OCR
+        # detections flow into the pipeline, while also matching config overrides if present.
+        self.min_conf = float(self.cfg.get("min_confidence", 0.10))
+        self.min_text_len = int(self.cfg.get("min_text_length", 2))
+        self.min_area = int(self.cfg.get("min_area", 10))
+        self.max_aspect_ratio = float(self.cfg.get("max_aspect_ratio", 20.0))
+        self._tesseract_config = str(self.cfg.get("tesseract_config", "--psm 11"))
+        
+        self.scan_counter = 0
 
+        self.tesseract: Any = None
         try:
             import pytesseract
             self.tesseract = pytesseract
         except ImportError:
             print("❌ pytesseract not installed. OCR disabled.")
-            self.tesseract = None
-
-    def _try_detect(self, image: np.ndarray) -> List[Detection]:
-        try:
-            data = self.tesseract.image_to_data(image, output_type=self.tesseract.Output.DICT, config=self._tesseract_config)
-        except Exception:
-            return []
-
-        dets: List[Detection] = []
-        n_boxes = len(data.get('text', []))
-
-        for i in range(n_boxes):
-            text = str(data['text'][i]).strip()
-            try:
-                conf = float(data['conf'][i])
-            except (TypeError, ValueError):
-                continue
-
-            if not text or conf < self.min_conf or len(text) < self.min_text_len:
-                continue
-
-            x = int(data['left'][i])
-            y = int(data['top'][i])
-            w = int(data['width'][i])
-            h = int(data['height'][i])
-
-            if w <= 0 or h <= 0:
-                continue
-
-            area = w * h
-            if area < self.min_area or w < 20 or h < 15:
-                continue
-
-            aspect = max(w / h, h / w)
-            if aspect > self.max_aspect_ratio:
-                continue
-
-            dets.append(
-                Detection(
-                    label=f"ocr:{text}",
-                    confidence=round(conf / 100, 2),
-                    bbox_xyxy=(x, y, x + w, y + h),
-                    source="ocr",
-                    meta={"text": text, "confidence": round(conf / 100, 2)},
-                )
-            )
-
-        return dets
 
     def detect(self, frame_bgr: np.ndarray) -> List[Detection]:
         if self.tesseract is None or frame_bgr is None or frame_bgr.size == 0:
             return []
 
+        # OCR start time
+        t0 = time.time()
+        self.scan_counter += 1
+
+        # ─────────────────────────────────────────────────────────────
+        # BASE LOGIC: Grayscale conversion (matching ocr_working_live.py)
+        # ─────────────────────────────────────────────────────────────
         gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
-        gray = cv2.equalizeHist(gray)
 
-        # Sharpen and denoise
-        kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]], dtype=np.float32)
-        gray = cv2.filter2D(gray, -1, kernel)
-        gray = cv2.GaussianBlur(gray, (3, 3), 0)
-
-        detections = self._try_detect(gray)
-        if detections:
-            return detections
-
+        # ─────────────────────────────────────────────────────────────
+        # BASE LOGIC: Run Tesseract image_to_string for terminal output
+        # ─────────────────────────────────────────────────────────────
         try:
-            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-            enhanced = clahe.apply(gray)
-            detections = self._try_detect(enhanced)
-            if detections:
-                return detections
-        except Exception:
-            pass
-
-        try:
-            binary = cv2.adaptiveThreshold(
-                gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                cv2.THRESH_BINARY, 11, 2
+            text = self.tesseract.image_to_string(
+                gray,
+                config=self._tesseract_config
             )
-            detections = self._try_detect(binary)
-            if detections:
-                return detections
-        except Exception:
-            pass
+            text = text.strip()
+        except Exception as e:
+            text = ""
+            print(f"Error running Tesseract image_to_string: {e}")
 
+        # OCR elapsed time
+        elapsed = time.time() - t0
+
+        # ─────────────────────────────────────────────────────────────
+        # BASE LOGIC: Terminal output matching ocr_working_live.py
+        # ─────────────────────────────────────────────────────────────
+        print("\n" + "─" * 60)
+        print(
+            f"SCAN #{self.scan_counter} "
+            f"| OCR Time: {elapsed:.2f}s"
+        )
+        print()
+        if text:
+            print(text)
+        else:
+            print("No text detected")
+        print("─" * 60)
+
+        # ─────────────────────────────────────────────────────────────
+        # PIPELINE INTEGRATION: Get bounding boxes for the AMR pipeline
+        # ─────────────────────────────────────────────────────────────
+        dets: List[Detection] = []
         try:
-            filtered = cv2.bilateralFilter(gray, 9, 75, 75)
-            binary = cv2.adaptiveThreshold(
-                filtered, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                cv2.THRESH_BINARY, 11, 2
+            data = self.tesseract.image_to_data(
+                gray, 
+                output_type=self.tesseract.Output.DICT, 
+                config=self._tesseract_config
             )
-            detections = self._try_detect(binary)
-        except Exception:
-            pass
+            n_boxes = len(data.get('text', []))
 
-        return detections
+            for i in range(n_boxes):
+                word_text = str(data['text'][i]).strip()
+                try:
+                    conf = float(data['conf'][i])
+                except (TypeError, ValueError):
+                    continue
+
+                if not word_text or conf < self.min_conf or len(word_text) < self.min_text_len:
+                    continue
+
+                x = int(data['left'][i])
+                y = int(data['top'][i])
+                w = int(data['width'][i])
+                h = int(data['height'][i])
+
+                if w <= 0 or h <= 0:
+                    continue
+
+                area = w * h
+                if area < self.min_area or w < 5 or h < 5:
+                    continue
+
+                aspect = max(w / h, h / w)
+                if aspect > self.max_aspect_ratio:
+                    continue
+
+                dets.append(
+                    Detection(
+                        label=f"ocr:{word_text}",
+                        confidence=round(conf / 100, 2),
+                        bbox_xyxy=(x, y, x + w, y + h),
+                        source="ocr",
+                        meta={"text": word_text, "confidence": round(conf / 100, 2)},
+                    )
+                )
+        except Exception as e:
+            print(f"Error running Tesseract image_to_data: {e}")
+
+        return dets

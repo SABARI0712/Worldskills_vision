@@ -12,7 +12,7 @@ class WorldModel:
     """
 
     def __init__(self, max_history: int = 200) -> None:
-        self.max_history = int(max_history)
+        self.max_history = max_history
         self.objects: Dict[int, Dict[str, Any]] = {}
         self.history: List[Dict[str, Any]] = []
         self.counts: Dict[str, int] = {}

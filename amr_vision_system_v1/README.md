@@ -150,59 +150,71 @@ Notes:
 ## How the pipeline is wired (Version 1)
 
 ### 1) Config
-
-- `config/loader.py` loads YAML into a dict used everywhere.
+- `config/loader.py` loads YAML into a dictionary used system-wide.
 
 ### 2) Camera
-
-- `camera/camera_handler.py` selects:
-  - `USBCamera` (`camera/usb_camera.py`) for webcam capture + reconnect
-  - `ROSCamera` (`camera/ros_camera.py`) for latest-frame retrieval from ROS2 topic
+- `camera/camera_handler.py` selects and manages:
+  - `USBCamera` (`camera/usb_camera.py`) with Linux V4L2 backend, auto-reconnect, and custom Orbbec Gemini E parameter optimizations (autofocus disable, manual focus, exposure/gain tuning).
+  - `ROSCamera` (`camera/ros_camera.py`) for ROS2 topic integration with `cv_bridge`.
 
 ### 3) Preprocess
-
-- `preprocessing/image_preprocessor.py` runs (configurable):
-  - resize
-  - CLAHE (in LAB space)
-  - optional denoise
+- `preprocessing/image_preprocessor.py` applies optional/configurable steps:
+  - Spatial resizing (maintaining aspect ratio or forced dimensions).
+  - CLAHE (Contrast Limited Adaptive Histogram Equalization) in LAB colorspace.
+  - Non-local means denoising to clean image noise.
 
 ### 4) Detect
+- `detection/hybrid_detector.py` orchestrates object detection:
+  - `mode: yolo` runs `detection/ml/yolo_detector.py` with custom weights.
+  - `mode: classical` runs QR code, ArUco, OCR, and color detectors concurrently.
+  - `mode: hybrid` merges semantic deep learning and classical detections, leveraging semantic protection regions to prevent overlap.
 
-- `detection/hybrid_detector.py` is the entry point:
-  - `mode: yolo` uses `detection/ml/yolo_detector.py`
-  - `mode: classical` uses `detection/classical/*`
-  - `mode: hybrid` runs both and concatenates detections
+### 5) Fusion & Resolution
+- `fusion/detection_fuser.py` and `DuplicateResolver` (`fusion/duplicate_resolver.py`):
+  - Resolves overlapping bounding boxes via IoU thresholds.
+  - Prioritizes highly reliable sensors: `aruco` > `qr` > `ocr` > `yolo` > `color` > `contour`.
+  - Intelligently filters and preserves specific color labels over generic background components.
 
-### 5) Postprocess
+### 6) Tracking & Filtering
+- `tracking/centroid_tracker.py` (`CentroidTracker`):
+  - Associates bounding boxes across frames using centroid Euclidean distances.
+  - Tracks ID persistence with custom disappearing limits.
+  - Computes real-time 2D pixel velocities using frame timestamps.
+- `tracking/temporal_filter.py` (`TemporalFilter`):
+  - Exponentially smooths bounding boxes and confidence scores over time.
+  - Blend orientations (angles) on a 180-degree circular domain to prevent flip artifacts.
+  - Integrates with tracker liveness to persist states smoothly through transient frames.
 
-- `postprocessing/post_processor.py`:
-  - confidence filtering
-  - bbox clamping
+### 7) Postprocess & Pose Estimation
+- `postprocessing/post_processor.py` manages coordinate clamping and confidence sorting.
+- `postprocessing/pose_estimator.py` (`PoseEstimator`):
+  - Uses contour moments to compute 2D/3D physical orientations and centroids.
 
-### 6) Mapping (optional)
+### 8) Mapping & Spatial Analytics
+- `postprocessing/board_mapper.py` (`BoardMapper`):
+  - Maps 2D pixel coordinates to discrete board grid coordinates (e.g. A1, D5) based on a configurable matrix.
+- `perception/occupancy_grid.py` (`OccupancyGrid`):
+  - Translates active tracker states into occupancy maps.
+- `perception/counter.py` (`ObjectCounter`):
+  - Compiles structured frame-by-frame summaries of class, color, and cell distributions.
+- `perception/world_model.py` (`WorldModel`) & `SceneMemory` (`perception/scene_memory.py`):
+  - WorldModel maintains global tracking states, history buffers, and latest known positions.
+  - SceneMemory maintains a historical window of perception frames for retrospective reasoning.
 
-- `postprocessing/board_mapper.py`:
-  - maps bbox center pixel \(\rightarrow\) grid cell label (basic)
+### 9) Export
+- `output/formatter.py` routing:
+  - `output/json_formatter.py`: exports to a standard JSON array iteratively with `O(1)` back-seek and truncate logic for memory safety and format correctness.
+  - `output/csv_formatter.py`: exports frame statistics incrementally in CSV format.
 
-### 7) Export
-
-- `output/formatter.py` chooses:
-  - `output/json_formatter.py`
-  - `output/csv_formatter.py`
-
-### 8) Visualize
-
+### 10) Visualize
 - `output/visualizer.py`:
-  - draws bbox + label + confidence
-  - optional grid overlay
-  - writes `results/annotated.jpg`
+  - Renders colored bounding boxes, centroids, tracking IDs, and custom pose orientation vectors.
+  - Renders board overlays, cell grids, and text summaries.
 
 ---
 
 ## Extension points (keep V1 stable)
-
 When you extend later, do it by adding modules, not by mixing responsibilities:
-
 - Add new classical detectors in `detection/classical/`
 - Add additional postprocessing rules in `postprocessing/`
 - Add new exporters in `output/` and route via `output/formatter.py`
