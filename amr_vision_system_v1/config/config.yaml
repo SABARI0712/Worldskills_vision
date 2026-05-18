@@ -72,7 +72,7 @@ detection:
       min_marker_area: 100
       corner_refinement: true
     color:
-      enabled: false
+      enabled: true
       min_area: 10000
       min_aspect_ratio: 0.2
       max_aspect_ratio: 5.0
@@ -123,7 +123,7 @@ mapping:
       rows: "8765"
 
 output:
-  format: json  # json | csv
+  format: csv  # json | csv
   write_outputs: true
   # append=true → JSON Lines (one object/frame written immediately, no RAM build-up)
   # append=false → full JSON list written on exit (risks OOM on long sessions)
