@@ -5,7 +5,7 @@ app:
   results_dir: results
 
 camera:
-  source: usb            # usb | ros
+  source: usb         # usb | ros
   threaded_reader: true  # keep camera acquisition alive in the background
   threaded_poll_interval_s: 0.005
   usb:
@@ -16,7 +16,7 @@ camera:
     reconnect: true
     reconnect_wait_s: 0.5
   ros:
-    topic: /camera/image_raw
+    topic: /camera/raw_image
     encoding: bgr8
     spin_timeout_s: 0.01
 
@@ -56,7 +56,7 @@ detection:
 
   yolo:
     enabled: true
-    weights_path: /home/user/YOLO/runs/train39/weights/best.pt
+    weights_path: models/best.pt  # place your best.pt here; absolute path also accepted
     imgsz: 640
     device: null         # null lets ultralytics choose
     iou: 0.45
@@ -65,7 +65,7 @@ detection:
   classical:
     enabled: true
     qr:
-      enabled: true
+      enabled: true 
     aruco:
       enabled: true
       dictionary: "DICT_4X4_50"
@@ -89,11 +89,14 @@ detection:
       enabled: false
       min_area: 2000
     ocr:
-      enabled: true
-      min_confidence: 0.805
+      enabled: false
+      # Normalised 0-1 confidence (tesseract returns 0-100 internally; 0.75 = 75% confidence)
+      min_confidence: 0.88
       min_text_length: 3
       min_area: 1500
       max_aspect_ratio: 5.0
+      # Run OCR every N frames — pytesseract is slow; 5 = good balance
+      interval: 1
 
 postprocess:
   # NOTE: this gates ALL postprocess sub-settings below
@@ -108,7 +111,7 @@ postprocess:
     threshold_value: 127  # for binary threshold if not using Canny
 
 mapping:
-  enabled: false
+  enabled: true
   grid:
     rows: 4
     cols: 4
@@ -120,15 +123,18 @@ mapping:
 output:
   format: json  # json | csv
   write_outputs: true
-  # When append=true:
-  # - JSON output becomes JSON Lines (one JSON object per line / per frame)
-  # - CSV output appends rows (keeps full history)
-  append: false
+  # append=true → JSON Lines (one object/frame written immediately, no RAM build-up)
+  # append=false → full JSON list written on exit (risks OOM on long sessions)
+  append: true
   include_empty_frames: false
   json_path: results/output.json
   csv_path: results/output.csv
   image_path: results/annotated.jpg
   save_image: false      # set true only when you want per-frame annotated image writes
+  # flush_every: only used when append=false; write buffer to disk every N frames
+  flush_every: 500
+  # Print per-stage timing to log every N frames (0 = disabled)
+  perf_log_interval: 100
 
 counts:
   enabled: false
@@ -140,6 +146,6 @@ visualization:
   enabled: true
   show_window: true
   window_name: AMR Vision V1
-  draw_grid: false
+  draw_grid: true 
   draw_labels: true
   draw_confidence: true

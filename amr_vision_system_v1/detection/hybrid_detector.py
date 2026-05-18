@@ -25,6 +25,8 @@ class HybridDetector:
 
         self.yolo_enabled = bool(ycfg.get("enabled", True))
         self.classical_enabled = bool(ccfg.get("enabled", True))
+        self._ocr_interval = int(((ccfg.get("ocr") or {}).get("interval", 3)) if ccfg else 3)
+        self._frame_index = 0
 
         self._ycfg = ycfg
         self._ccfg = ccfg
@@ -71,8 +73,10 @@ class HybridDetector:
             dets.extend(self._qr.detect(frame_bgr))
         if self._yolo and self.yolo_enabled:
             dets.extend(self._yolo.detect(frame_bgr, conf=self.confidence))
-        if self._ocr:
+
+        if self._ocr and (self._frame_index % self._ocr_interval) == 0:
             dets.extend(self._ocr.detect(frame_bgr))
+        self._frame_index += 1
 
         # === Build protected regions for lower-level detectors ===
         protected_regions = []

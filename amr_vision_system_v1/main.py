@@ -11,6 +11,8 @@ import numpy as np
 from config.loader import load_config
 from perception.counter import ObjectCounter
 from perception.occupancy_grid import OccupancyGrid
+from perception.world_model import WorldModel
+from perception.scene_memory import SceneMemory
 from camera.camera_handler import create_camera
 from preprocessing.image_preprocessor import ImagePreprocessor
 from detection.hybrid_detector import HybridDetector
@@ -29,6 +31,7 @@ from perception.color_classifier import ColorClassifier
 from utils.helpers import now_ms
 from utils.logger import setup_logger
 from utils.validators import validate_detections
+from utils.performance_monitor import PerformanceMonitor
 
 
 def _resolve_path(base_dir: str, maybe_rel: str) -> str:
@@ -87,12 +90,18 @@ def main() -> int:
     tracker = CentroidTracker()
     temporal_filter = TemporalFilter(alpha=0.7)
     counter = ObjectCounter()
+    world_model = WorldModel(max_history=200)
+    scene_memory = SceneMemory(max_history=50)
+    perf_monitor = PerformanceMonitor()
+    frame_counter = 0
 
     out_cfg = cfg.get("output") or {}
     save_image = bool(out_cfg.get("save_image", False))
     include_empty_frames = bool(out_cfg.get("include_empty_frames", True))
     output_format = str(out_cfg.get("format", "json")).lower()
-    output_append = bool(out_cfg.get("append", False))
+    output_append = bool(out_cfg.get("append", True))
+    FLUSH_EVERY = int(out_cfg.get("flush_every", 500))
+    perf_log_interval = int(out_cfg.get("perf_log_interval", 100))
     output_history: List[Dict[str, Any]] = []
     vis_cfg = cfg.get("visualization") or {}
     visualizer = Visualizer(vis_cfg) if bool(vis_cfg.get("enabled", True)) else None
@@ -119,22 +128,36 @@ def main() -> int:
                 continue
 
             ts_ms = now_ms()
+            frame_counter += 1
+
+            t0 = time.perf_counter()
             if pre is not None:
                 frame = pre.process(frame)
+            perf_monitor.record("preprocess", time.perf_counter() - t0)
 
             original_frame = frame.copy()
-            warped_frame = perspective.apply(frame)
 
+            t0 = time.perf_counter()
+            warped_frame = perspective.apply(frame)
+            perf_monitor.record("perspective", time.perf_counter() - t0)
+
+            t0 = time.perf_counter()
             dets = detector.detect(warped_frame)
+            perf_monitor.record("detect", time.perf_counter() - t0)
+
+            t0 = time.perf_counter()
             for det in dets:
                 if det.source in ["yolo", "qr", "aruco", "contour"]:
                     det.color = classifier.classify(warped_frame, det.bbox_xyxy)
             if post is not None:
                 dets = post.process(dets, frame_shape_hw=warped_frame.shape[:2])
+            perf_monitor.record("postprocess", time.perf_counter() - t0)
 
+            t0 = time.perf_counter()
             det_dicts = detections_to_dicts(dets)
             det_dicts = fuser.fuse(det_dicts)
             det_dicts = tracker.update(det_dicts, timestamp_ms=ts_ms)
+            perf_monitor.record("fuse+track", time.perf_counter() - t0)
 
             # Pose estimation for tracked objects (only if enabled)
             if pose_estimator is not None:
@@ -143,6 +166,10 @@ def main() -> int:
             # Pass tracker alive IDs into temporal filter to avoid aggressive pruning
             tracker_active_ids = set(getattr(tracker, "objects", {}).keys())
             det_dicts = temporal_filter.update(det_dicts, alive_ids=tracker_active_ids)
+
+            # Update world model and scene memory with final tracked detections
+            world_model.update(det_dicts)
+            scene_memory.record_frame(frame_counter, det_dicts)
 
             # Optional mapping to grid/chess cell
             if mapper is not None:
@@ -162,23 +189,36 @@ def main() -> int:
 
             payload = {
                 "timestamp_ms": ts_ms,
+                "frame": frame_counter,
                 "image": {"width": int(warped_frame.shape[1]), "height": int(warped_frame.shape[0])},
                 "detections": det_dicts,
                 "detection_count": len(det_dicts),
                 "detection_labels": [d["label"] for d in det_dicts],
                 "object_ids": [d.get("id") for d in det_dicts if d.get("id") is not None],
                 "occupancy": occupancy_data,
+                "world_counts": dict(world_model.counts),
             }
             if counts_enabled and counts_include:
                 payload["count_summary"] = count_summary
+            # Include perf summary every N frames (not every frame to keep output lean)
+            if perf_log_interval > 0 and frame_counter % perf_log_interval == 0:
+                perf_summary = perf_monitor.summary()
+                payload["perf_summary"] = perf_summary
+                logger.info(f"[perf frame={frame_counter}] " +
+                            ", ".join(f"{k}={v*1000:.1f}ms"
+                                      for k, v in perf_summary.get("average_s", {}).items()))
+                perf_monitor.clear()
 
             if bool(out_cfg.get("write_outputs", True)) and (include_empty_frames or det_dicts):
                 if not output_append:
-                    # Buffer frames when not appending (for JSON/CSV)
                     output_history.append(payload)
+                    # Periodic flush to prevent unbounded RAM growth
+                    if FLUSH_EVERY > 0 and len(output_history) >= FLUSH_EVERY:
+                        export_output(output_format, out_cfg, output_history)
+                        output_history.clear()
+                        logger.info(f"[output] flushed {FLUSH_EVERY} frames to disk")
                 else:
-                    # Write immediately in append mode (JSONL/CSV append)
-                    export_output(output_format, out_cfg, payload)
+                    export_output(output_format, out_cfg, [payload])
 
             annotated = warped_frame
             if runtime_monitor is not None:

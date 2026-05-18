@@ -4,9 +4,15 @@ from typing import Any, Dict, List
 
 
 class WorldModel:
-    """A shared representation of the current scene state."""
+    """A shared representation of the current scene state.
 
-    def __init__(self) -> None:
+    ``objects`` holds the latest detection dict for every tracked ID.
+    ``history`` is a capped sliding window of recent frames.
+    ``counts`` is the per-label count for the most recent frame.
+    """
+
+    def __init__(self, max_history: int = 200) -> None:
+        self.max_history = int(max_history)
         self.objects: Dict[int, Dict[str, Any]] = {}
         self.history: List[Dict[str, Any]] = []
         self.counts: Dict[str, int] = {}
@@ -19,6 +25,10 @@ class WorldModel:
             self.objects[object_id] = det.copy()
 
         self.history.append({"frame_objects": [det.copy() for det in detections]})
+        # Trim history to stay within cap
+        if len(self.history) > self.max_history:
+            self.history = self.history[-self.max_history:]
+
         self.counts = {}
         for det in detections:
             label = str(det.get("label", "unknown"))
