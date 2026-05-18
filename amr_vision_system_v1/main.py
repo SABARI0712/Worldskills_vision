@@ -26,6 +26,7 @@ from output.json_formatter import export_json
 from output.csv_formatter import export_csv
 from output.visualizer import Visualizer
 from output.runtime_monitor import RuntimeMonitor
+from output.ros_publisher import ROSPublisherManager
 from fusion.detection_fuser import DetectionFuser
 from tracking.centroid_tracker import CentroidTracker
 from tracking.temporal_filter import TemporalFilter
@@ -118,6 +119,7 @@ def main() -> int:
     vis_cfg = cfg.get("visualization") or {}
     visualizer = Visualizer(vis_cfg) if bool(vis_cfg.get("enabled", True)) else None
     runtime_monitor = RuntimeMonitor() if bool(out_cfg.get("runtime_monitor", True)) else None
+    ros_pub_manager = ROSPublisherManager(logger=logger)
 
     counts_cfg = cfg.get("counts") or {}
     counts_enabled = bool(counts_cfg.get("enabled", True))
@@ -178,6 +180,10 @@ def main() -> int:
             # Pass tracker alive IDs into temporal filter to avoid aggressive pruning
             tracker_active_ids = set(getattr(tracker, "objects", {}).keys())
             det_dicts = temporal_filter.update(det_dicts, alive_ids=tracker_active_ids)
+
+            # Publish tracked detections to dedicated ROS2 topics
+            if ros_pub_manager:
+                ros_pub_manager.publish_detections(det_dicts)
 
             # Update world model and scene memory with final tracked detections
             world_model.update(det_dicts)
@@ -277,6 +283,11 @@ def main() -> int:
                     break
 
     finally:
+        if ros_pub_manager and ros_pub_manager.node:
+            try:
+                ros_pub_manager.node.destroy_node()
+            except Exception:
+                pass
         try:
             camera.close()
         except Exception:
