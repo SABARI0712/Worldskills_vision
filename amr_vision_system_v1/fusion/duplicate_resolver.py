@@ -6,6 +6,10 @@ from typing import Any, Dict, List, Sequence
 class DuplicateResolver:
     """Resolves duplicate or overlapping detections."""
 
+    # Preferred specific colors beat less-specific ones when regions overlap.
+    # Black is last because large dark/shadow regions frequently mimic objects.
+    _COLOR_PRIORITY = ["red1", "red2", "red", "green", "blue", "orange", "yellow", "black"]
+
     def __init__(self, iou_threshold: float = 0.45) -> None:
         self.iou_threshold = float(iou_threshold)
         self.source_priority = ["aruco", "qr", "ocr", "yolo", "color", "contour"]
@@ -39,6 +43,14 @@ class DuplicateResolver:
         except ValueError:
             return len(self.source_priority)
 
+    def _color_label_priority(self, label: str) -> int:
+        """Lower index = higher priority colour."""
+        color_name = label.replace("color:", "").lower()
+        for i, c in enumerate(self._COLOR_PRIORITY):
+            if c in color_name:
+                return i
+        return len(self._COLOR_PRIORITY)
+
     def resolve(self, detections: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if not detections:
             return []
@@ -66,6 +78,17 @@ class DuplicateResolver:
                     det_prio = self._priority(det)
                     sel_prio = self._priority(sel)
                     if det_prio < sel_prio:
+                        to_remove.append(sel)
+                        continue
+                    else:
+                        suppress = True
+                        break
+                # Two colour detections overlapping with different labels:
+                # keep the higher-priority (more specific) colour, suppress black/shadows.
+                if det_source == "color" and sel_source == "color" and det_label != sel_label:
+                    det_c_prio = self._color_label_priority(det_label)
+                    sel_c_prio = self._color_label_priority(sel_label)
+                    if det_c_prio <= sel_c_prio:
                         to_remove.append(sel)
                         continue
                     else:

@@ -270,6 +270,10 @@ def main() -> int:
         except Exception:
             pass
         try:
+            detector.close()
+        except Exception:
+            pass
+        try:
             cv2.destroyAllWindows()
         except Exception:
             pass

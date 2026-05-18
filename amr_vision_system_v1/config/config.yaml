@@ -65,15 +65,15 @@ detection:
   classical:
     enabled: true
     qr:
-      enabled: true 
+      enabled: true
     aruco:
       enabled: true
       dictionary: "DICT_4X4_50"
       min_marker_area: 100
       corner_refinement: true
     color:
-      enabled: true
-      min_area: 7000
+      enabled: false
+      min_area: 10000
       min_aspect_ratio: 0.2
       max_aspect_ratio: 5.0
       hsv_ranges:
@@ -84,19 +84,21 @@ detection:
         blue: [[94, 80, 2], [126, 255, 255]]
         orange: [[10, 120, 80], [25, 255, 255]]
         yellow: [[25, 120, 120], [35, 255, 255]]
-        black: [[0, 0, 0], [180, 255, 50]]
+        black: [[0, 0, 0], [180, 255, 30]]
     contour:
       enabled: false
       min_area: 2000
     ocr:
       enabled: false
-      # Normalised 0-1 confidence (tesseract returns 0-100 internally; 0.75 = 75% confidence)
-      min_confidence: 0.88
+      # Tesseract returns 0-100 confidence; this value is normalised 0-1.
+      # Real camera text typically scores 50-80% — use 0.60 for practical detection.
+      # Raise toward 0.80+ only if you get too many false readings.
+      min_confidence: 0.60
       min_text_length: 3
       min_area: 1500
       max_aspect_ratio: 5.0
       # Run OCR every N frames — pytesseract is slow; 5 = good balance
-      interval: 1
+      interval: 
 
 postprocess:
   # NOTE: this gates ALL postprocess sub-settings below
@@ -146,6 +148,6 @@ visualization:
   enabled: true
   show_window: true
   window_name: AMR Vision V1
-  draw_grid: true 
+  draw_grid: true
   draw_labels: true
   draw_confidence: true

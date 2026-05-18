@@ -12,9 +12,9 @@ class USBCamera:
     def __init__(
         self,
         index: int = 0,
-        width: Optional[int] = None,
-        height: Optional[int] = None,
-        fps: Optional[float] = None,
+        width: Optional[int] = 1280,
+        height: Optional[int] = 720,
+        fps: Optional[float] = 30,
         reconnect: bool = True,
         reconnect_wait_s: float = 0.5,
     ) -> None:
@@ -28,41 +28,77 @@ class USBCamera:
         self._open()
 
     def _open(self) -> None:
-        self.cap = cv2.VideoCapture(self.index)
+
+        # V4L2 backend works better on Linux + Orbbec
+        self.cap = cv2.VideoCapture(self.index, cv2.CAP_V4L2)
+
         if self.cap is None:
             return
+
+        # Resolution
         try_set_cap_prop(self.cap, cv2.CAP_PROP_FRAME_WIDTH, self.width)
         try_set_cap_prop(self.cap, cv2.CAP_PROP_FRAME_HEIGHT, self.height)
         try_set_cap_prop(self.cap, cv2.CAP_PROP_FPS, self.fps)
+
+        # LOW LATENCY
         try:
             if hasattr(cv2, "CAP_PROP_BUFFERSIZE"):
                 try_set_cap_prop(self.cap, cv2.CAP_PROP_BUFFERSIZE, 1)
         except Exception:
             pass
 
+        # =========================
+        # GEMINI E OPTIMIZATION
+        # =========================
+
+        try:
+            # Disable autofocus
+            self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)
+
+            # Manual focus
+            self.cap.set(cv2.CAP_PROP_FOCUS, 10)
+
+            # Disable aggressive auto exposure
+            self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)
+
+            # Exposure tuning
+            self.cap.set(cv2.CAP_PROP_EXPOSURE, -6)
+
+            # Lower gain = less noise
+            self.cap.set(cv2.CAP_PROP_GAIN, 0)
+
+        except Exception:
+            pass
+
     def read(self) -> Tuple[bool, Optional["cv2.Mat"]]:
+
         if self.cap is None or not self.cap.isOpened():
+
             if not self.reconnect:
                 return False, None
+
             self.close()
             time.sleep(self.reconnect_wait_s)
+
             self._open()
+
             if self.cap is None or not self.cap.isOpened():
                 return False, None
 
         ok, frame = self.cap.read()
+
         if ok:
             return True, frame
 
-        # Close the capture on any failed read to avoid half-open state
         self.close()
         return False, None
 
     def close(self) -> None:
+
         if self.cap is not None:
             try:
                 self.cap.release()
             except Exception:
                 pass
-        self.cap = None
 
+        self.cap = None
