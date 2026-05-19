@@ -5,7 +5,7 @@ app:
   results_dir: results
 
 camera:
-  source: usb         # usb | ros
+  source: mjpeg       # usb | ros | mjpeg
   threaded_reader: true  # keep camera acquisition alive in the background
   threaded_poll_interval_s: 0.005
   usb:
@@ -13,12 +13,21 @@ camera:
     width: null          # set e.g. 640
     height: null         # set e.g. 480
     fps: null
-    reconnect: true
+    reconnect: false
     reconnect_wait_s: 0.5
   ros:
     topic: /camera/raw_image
     encoding: bgr8
     spin_timeout_s: 0.01
+  mjpeg:
+    url: "http://vmx.local:5000/video"
+    reconnect: true
+    reconnect_wait_s: 1.0
+
+mjpeg_stream:
+  enabled: true
+  url: "http://vmx.local:5000/video"
+  window_name: "Localhost MJPEG Stream"
 
 preprocess:
   # NOTE: this gates ALL preprocess sub-settings below
