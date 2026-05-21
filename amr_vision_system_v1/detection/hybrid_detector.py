@@ -51,6 +51,7 @@ class HybridDetector:
         }
         self._frames_since_qr = 0
         self._last_detect_time = 0.0
+        self.avg_detect_time = 0.0  # Exponential moving average for load detection
 
     # ------------------------------------------------------------------
     def warmup(self) -> None:
@@ -103,7 +104,7 @@ class HybridDetector:
         # OCR: every 20 frames (or dynamic based on config)
         
         # Adaptive performance load balancing (Step 10):
-        if self._last_detect_time > 0.05:
+        if self.avg_detect_time > 0.08:
             # Under load, dynamically back off frequency of heavy detectors to preserve FPS
             yolo_mod = 6
             qr_mod = 4
@@ -159,11 +160,6 @@ class HybridDetector:
         # ─── Priority 3: QR (runs scheduled & ROI-based) ───
         qr_dets = []
         if self._qr:
-            if not self._detector_cache.get("qr"):
-                self._frames_since_qr += 1
-            else:
-                self._frames_since_qr = 0
-
             # Step 8: Only upscale if QR has failed to detect for 10 frames
             upscale = (self._frames_since_qr > 10)
 
@@ -192,6 +188,12 @@ class HybridDetector:
                     for fd in full_qr_dets:
                         if not any(np.array_equal(fd.bbox_xyxy, q.bbox_xyxy) for q in qr_dets):
                             qr_dets.append(fd)
+                
+                # Only increment failure counter if QR actually ran and found nothing
+                if not qr_dets:
+                    self._frames_since_qr += 1
+                else:
+                    self._frames_since_qr = 0
                 
                 self._detector_cache["qr"] = qr_dets
             else:
@@ -273,8 +275,12 @@ class HybridDetector:
         # Filter very low confidence detections
         dets = [d for d in dets if d.confidence >= self.confidence]
 
-        # Update last execution time for performance load balancer
+        # Update detection timing for load balancing (exponential moving average)
         self._last_detect_time = time.perf_counter() - t_start
+        self.avg_detect_time = (
+            self.avg_detect_time * 0.9
+            + self._last_detect_time * 0.1
+        )
 
         return dets
 

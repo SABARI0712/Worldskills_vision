@@ -5,9 +5,9 @@ app:
   results_dir: results
 
 camera:
-  source: mjpeg       # usb | ros | mjpeg
+  source: usb       # usb | ros | mjpeg
   threaded_reader: true  # keep camera acquisition alive in the background
-  threaded_poll_interval_s: 0.005
+  threaded_poll_interval_s: 0.020
   usb:
     index: 2
     width: null          # set e.g. 640
@@ -61,7 +61,7 @@ perspective:
 
 detection:
   mode: hybrid           # yolo | classical | hybrid
-  confidence: 0.90
+  confidence: 0.85
 
   yolo:
     enabled: true
@@ -105,8 +105,8 @@ detection:
       min_area: 10
       max_aspect_ratio: 20.0
       tesseract_config: "--psm 11"
-      # Run OCR every N frames — pytesseract is slow; 5 = good balance
-      interval: 5
+      # Run OCR every N frames — pytesseract is slow; 15 = good balance (safe throttling)
+      interval: 15
 
 postprocess:
   # NOTE: this gates ALL postprocess sub-settings below

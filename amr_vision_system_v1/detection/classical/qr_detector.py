@@ -19,6 +19,11 @@ class QRDetector:
 
     def __init__(self) -> None:
         self._detector = cv2.QRCodeDetector()
+        # Precompute CLAHE to avoid recreating every frame
+        self.clahe = cv2.createCLAHE(
+            clipLimit=2.0,
+            tileGridSize=(8, 8),
+        )
 
     def _normalize_points(self, pts: np.ndarray) -> np.ndarray:
 
@@ -143,13 +148,8 @@ class QRDetector:
 
     def _prepare(self, gray):
 
-        # CLAHE improves uneven lighting
-        clahe = cv2.createCLAHE(
-            clipLimit=2.0,
-            tileGridSize=(8, 8),
-        )
-
-        gray = clahe.apply(gray)
+        # CLAHE improves uneven lighting (reuse precomputed instance)
+        gray = self.clahe.apply(gray)
 
         # Bilateral preserves QR edges
         gray = cv2.bilateralFilter(gray, 7, 50, 50)
@@ -223,14 +223,17 @@ class QRDetector:
         if frame_bgr is None or frame_bgr.size == 0:
             return []
 
-        # DOWNSCALE slightly to reduce Gemini noise
-        frame_bgr = cv2.resize(
-            frame_bgr,
-            None,
-            fx=0.75,
-            fy=0.75,
-            interpolation=cv2.INTER_AREA,
-        )
+        # Only downscale if ROI is large enough to survive downscaling
+        h, w = frame_bgr.shape[:2]
+        
+        if min(h, w) >= 200:
+            frame_bgr = cv2.resize(
+                frame_bgr,
+                None,
+                fx=0.75,
+                fy=0.75,
+                interpolation=cv2.INTER_AREA,
+            )
 
         gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
 

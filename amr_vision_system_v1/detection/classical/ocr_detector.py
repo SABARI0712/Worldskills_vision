@@ -43,19 +43,6 @@ class OCRDetector:
         # ─────────────────────────────────────────────────────────────
         gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
 
-        # ─────────────────────────────────────────────────────────────
-        # BASE LOGIC: Run Tesseract image_to_string for terminal output
-        # ─────────────────────────────────────────────────────────────
-        try:
-            text = self.tesseract.image_to_string(
-                gray,
-                config=self._tesseract_config
-            )
-            text = text.strip()
-        except Exception as e:
-            text = ""
-            print(f"Error running Tesseract image_to_string: {e}")
-
         # OCR elapsed time
         elapsed = time.time() - t0
 
@@ -68,10 +55,7 @@ class OCRDetector:
             f"| OCR Time: {elapsed:.2f}s"
         )
         print()
-        if text:
-            print(text)
-        else:
-            print("No text detected")
+        print("Running OCR detection...")
         print("─" * 60)
 
         # ─────────────────────────────────────────────────────────────
@@ -93,7 +77,7 @@ class OCRDetector:
                 except (TypeError, ValueError):
                     continue
 
-                if not word_text or conf < self.min_conf or len(word_text) < self.min_text_len:
+                if not word_text or conf < (self.min_conf * 100) or len(word_text) < self.min_text_len:
                     continue
 
                 x = int(data['left'][i])
