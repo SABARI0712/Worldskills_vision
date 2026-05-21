@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 
 class WorldModel:
@@ -17,12 +17,17 @@ class WorldModel:
         self.history: List[Dict[str, Any]] = []
         self.counts: Dict[str, int] = {}
 
-    def update(self, detections: List[Dict[str, Any]]) -> None:
+    def update(self, detections: List[Dict[str, Any]], alive_ids: Optional[set] = None) -> None:
         for det in detections:
             object_id = det.get("id")
             if object_id is None:
                 continue
             self.objects[object_id] = det.copy()
+
+        # Remove objects the tracker has already deregistered
+        if alive_ids is not None:
+            for oid in [k for k in self.objects if k not in alive_ids]:
+                self.objects.pop(oid)
 
         self.history.append({"frame_objects": [det.copy() for det in detections]})
         # Trim history to stay within cap

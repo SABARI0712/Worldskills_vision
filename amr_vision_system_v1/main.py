@@ -186,7 +186,7 @@ def main() -> int:
                 ros_pub_manager.publish_detections(det_dicts)
 
             # Update world model and scene memory with final tracked detections
-            world_model.update(det_dicts)
+            world_model.update(det_dicts, alive_ids=tracker_active_ids)
             scene_memory.record_frame(frame_counter, det_dicts)
 
             # Optional mapping to grid/chess cell
