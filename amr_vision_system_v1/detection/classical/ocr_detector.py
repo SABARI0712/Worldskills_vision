@@ -34,8 +34,6 @@ class OCRDetector:
         if self.tesseract is None or frame_bgr is None or frame_bgr.size == 0:
             return []
 
-        # OCR start time
-        t0 = time.time()
         self.scan_counter += 1
 
         # ─────────────────────────────────────────────────────────────
@@ -43,31 +41,18 @@ class OCRDetector:
         # ─────────────────────────────────────────────────────────────
         gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
 
-        # OCR elapsed time
-        elapsed = time.time() - t0
-
-        # ─────────────────────────────────────────────────────────────
-        # BASE LOGIC: Terminal output matching ocr_working_live.py
-        # ─────────────────────────────────────────────────────────────
-        print("\n" + "─" * 60)
-        print(
-            f"SCAN #{self.scan_counter} "
-            f"| OCR Time: {elapsed:.2f}s"
-        )
-        print()
-        print("Running OCR detection...")
-        print("─" * 60)
-
         # ─────────────────────────────────────────────────────────────
         # PIPELINE INTEGRATION: Get bounding boxes for the AMR pipeline
         # ─────────────────────────────────────────────────────────────
         dets: List[Detection] = []
         try:
+            t0 = time.time()
             data = self.tesseract.image_to_data(
-                gray, 
-                output_type=self.tesseract.Output.DICT, 
+                gray,
+                output_type=self.tesseract.Output.DICT,
                 config=self._tesseract_config
             )
+            elapsed = time.time() - t0
             n_boxes = len(data.get('text', []))
 
             for i in range(n_boxes):
@@ -105,7 +90,7 @@ class OCRDetector:
                         meta={"text": word_text, "confidence": round(conf / 100, 2)},
                     )
                 )
-        except Exception as e:
-            print(f"Error running Tesseract image_to_data: {e}")
+        except Exception:
+            pass
 
         return dets

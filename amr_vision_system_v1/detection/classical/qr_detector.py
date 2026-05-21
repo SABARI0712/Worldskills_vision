@@ -226,7 +226,9 @@ class QRDetector:
         # Only downscale if ROI is large enough to survive downscaling
         h, w = frame_bgr.shape[:2]
         
+        downscale_factor = 1.0
         if min(h, w) >= 200:
+            downscale_factor = 0.75
             frame_bgr = cv2.resize(
                 frame_bgr,
                 None,
@@ -239,7 +241,7 @@ class QRDetector:
 
         gray = self._prepare(gray)
 
-        detections = self._run_passes(gray, 1.0)
+        detections = self._run_passes(gray, downscale_factor)
 
         if detections or not upscale:
             return detections
@@ -247,14 +249,15 @@ class QRDetector:
         # UPSCALE PASS
         h, w = gray.shape[:2]
 
-        scale = 1.5
+        upscale_ratio = 1.5
+        effective_scale = downscale_factor * upscale_ratio
 
         up = cv2.resize(
             gray,
-            (int(w * scale), int(h * scale)),
+            (int(w * upscale_ratio), int(h * upscale_ratio)),
             interpolation=cv2.INTER_LINEAR,
         )
 
-        detections = self._run_passes(up, scale)
+        detections = self._run_passes(up, effective_scale)
 
         return detections

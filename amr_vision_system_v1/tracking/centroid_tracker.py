@@ -14,7 +14,7 @@ class CentroidTracker:
         self.labels: OrderedDict[int, str] = OrderedDict()
         self.disappeared: OrderedDict[int, int] = OrderedDict()
         self.velocities: OrderedDict[int, Tuple[float, float]] = OrderedDict()
-        self.last_update_time = time.time()
+        self.last_update_time = None
 
         self.max_disappeared = max_disappeared
         self.max_distance = float(max_distance)
@@ -22,9 +22,12 @@ class CentroidTracker:
     def update(self, detections: List[Dict[str, Any]], timestamp_ms: int | None = None) -> List[Dict[str, Any]]:
         # Use provided frame timestamp when available (milliseconds), else fallback to wall clock
         now = (timestamp_ms / 1000.0) if timestamp_ms is not None else time.time()
-        dt = now - self.last_update_time
-        if dt <= 0:
+        if self.last_update_time is None:
             dt = 0.033
+        else:
+            dt = now - self.last_update_time
+            if dt <= 0:
+                dt = 0.033
         self.last_update_time = now
 
         if detections is None:

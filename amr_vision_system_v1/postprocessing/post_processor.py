@@ -25,6 +25,7 @@ class PostProcessor:
                     bbox_xyxy=(x1, y1, x2, y2),
                     source=d.source,
                     meta=dict(d.meta or {}),
+                    color=d.color,
                 )
             )
         return out
