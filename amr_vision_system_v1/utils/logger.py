@@ -8,7 +8,7 @@ from datetime import datetime
 def setup_logger(log_dir: str, name: str = "amr_vision_v1") -> logging.Logger:
     os.makedirs(log_dir, exist_ok=True)
     logger = logging.getLogger(name)
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.ERROR)
 
     if logger.handlers:
         return logger
@@ -20,14 +20,13 @@ def setup_logger(log_dir: str, name: str = "amr_vision_v1") -> logging.Logger:
 
     fh = logging.FileHandler(log_path)
     fh.setFormatter(fmt)
-    fh.setLevel(logging.INFO)
+    fh.setLevel(logging.ERROR)
 
     sh = logging.StreamHandler()
     sh.setFormatter(fmt)
-    sh.setLevel(logging.INFO)
+    sh.setLevel(logging.ERROR)
 
     logger.addHandler(fh)
     logger.addHandler(sh)
     logger.propagate = False
-    logger.info(f"log file: {log_path}")
     return logger

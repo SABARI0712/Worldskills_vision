@@ -26,12 +26,5 @@ class RuntimeMonitor:
         return lines
 
     def display(self, detections: List[Dict[str, Any]]) -> None:
-        lines = self.build_lines(detections)
-        if lines == self.last_lines:
-            return
-        self.last_lines = lines
-
-        print()
-        for line in lines:
-            print(line)
-        print("-" * 50)
+        # Disabled - using new dynamic terminal output system instead
+        pass

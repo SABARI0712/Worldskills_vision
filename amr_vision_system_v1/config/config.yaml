@@ -5,7 +5,7 @@ app:
   results_dir: results
 
 camera:
-  source: usb       # usb | ros | mjpeg
+  source: usb     # usb | ros | mjpeg
   threaded_reader: true  # keep camera acquisition alive in the background
   threaded_poll_interval_s: 0.020
   usb:
@@ -61,10 +61,10 @@ perspective:
 
 detection:
   mode: hybrid           # yolo | classical | hybrid
-  confidence: 0.80
+  confidence: 0.60
 
   yolo:
-    enabled: true
+    enabled: true 
     weights_path: models/best.pt  # place your best.pt here; absolute path also accepted
     imgsz: 640
     device: null         # null lets ultralytics choose
@@ -74,9 +74,9 @@ detection:
   classical:
     enabled: true
     qr:
-      enabled: true
+      enabled: false
     aruco:
-      enabled: true
+      enabled: false
       dictionary: "DICT_4X4_50"
       min_marker_area: 100
       corner_refinement: true
@@ -98,10 +98,10 @@ detection:
       enabled: false
       min_area: 2000
     ocr:
-      enabled: true
+      enabled: false
       # Tesseract returns 0-100 confidence; this value is normalised 0-1.
-      min_confidence: 0.10
-      min_text_length: 2
+      min_confidence: 0.1
+      min_text_length: 1
       min_area: 10
       max_aspect_ratio: 20.0
       tesseract_config: "--psm 11"
@@ -123,12 +123,12 @@ postprocess:
 mapping:
   enabled: true
   grid:
-    rows: 3
-    cols: 3
+    rows: 2
+    cols: 2
     origin: top_left      # top_left
     labels:
-      cols: ABC
-      rows: "876"
+      cols: AB
+      rows: "87"
 
 output:
   format: csv  # json | csv
@@ -159,3 +159,8 @@ visualization:
   draw_grid: true
   draw_labels: true
   draw_confidence: true
+
+terminal_output:
+  - "cell yolo yolo_conf"
+  #- "colour colour_conf"
+  #- "qr"

@@ -266,7 +266,7 @@ class HybridDetector:
         contour_dets = []
         if self._contour:
             if run_contour:
-                contour_dets = self._contour.detect(frame_bgr, occupied_regions=protected_regions)
+                contour_dets = self._contour.detect(frame_bgr)
                 self._detector_cache["contour"] = contour_dets
             else:
                 contour_dets = self._detector_cache.get("contour", [])

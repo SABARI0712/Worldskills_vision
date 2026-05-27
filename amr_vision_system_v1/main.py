@@ -61,7 +61,6 @@ def main() -> int:
     os.makedirs(results_dir, exist_ok=True)
 
     logger = setup_logger(log_dir=log_dir)
-    logger.info(f"config: {cfg_path}")
 
     camera = create_camera(cfg.get("camera") or {})
     pre_cfg = cfg.get("preprocess") or {}
@@ -72,7 +71,6 @@ def main() -> int:
 
     detector = HybridDetector(cfg.get("detection") or {})
     detector.warmup()
-    logger.info("detector warmed up")
 
     color_cfg = cfg.get("detection", {}).get("classical", {}).get("color", {})
     classifier = ColorClassifier(color_cfg)
@@ -110,11 +108,9 @@ def main() -> int:
         if output_format == "json":
             json_path = _resolve_path(base_dir, str(out_cfg.get("json_path", "results/output.json")))
             export_json(json_path, [], append=False)
-            logger.info(f"Initialized empty JSON output file: {json_path}")
         elif output_format == "csv":
             csv_path = _resolve_path(base_dir, str(out_cfg.get("csv_path", "results/output.csv")))
             export_csv(csv_path, [], append=False)
-            logger.info(f"Initialized CSV output file with header: {csv_path}")
 
     vis_cfg = cfg.get("visualization") or {}
     visualizer = Visualizer(vis_cfg) if bool(vis_cfg.get("enabled", True)) else None
@@ -132,8 +128,6 @@ def main() -> int:
     if show_window and visualizer is not None:
         cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
 
-    logger.info("pipeline started (press ESC to quit)")
-
     try:
         while True:
             ok, frame = camera.read()
@@ -143,6 +137,21 @@ def main() -> int:
 
             ts_ms = now_ms()
             frame_counter += 1
+
+            # Terminal output variables
+            cell = ""
+            yolo = ""
+            yolo_conf = ""
+            colour = ""
+            colour_conf = ""
+            qr = ""
+            qr_conf = ""
+            ocr = ""
+            ocr_conf = ""
+            aruco = ""
+            aruco_conf = ""
+            contour = ""
+            contour_conf = ""
 
             t0 = time.perf_counter()
             if pre is not None:
@@ -200,8 +209,49 @@ def main() -> int:
 
             occupancy_data = occupancy_grid.build(det_dicts)
             errs = validate_detections(det_dicts)
-            if errs:
-                logger.warning(f"invalid detections: {errs[:3]}")
+
+            # Extract values for terminal output from first detection of each type
+            if det_dicts:
+                for det in det_dicts:
+                    label = det.get("label", "")
+                    source = det.get("source", "")
+                    confidence = det.get("confidence", 0)
+                    # Ensure confidence is numeric
+                    try:
+                        confidence = float(confidence)
+                        conf_str = f"{confidence:.2f}"
+                    except (ValueError, TypeError):
+                        conf_str = "0.00"
+                    color = det.get("color", "")
+
+                    if source == "yolo":
+                        if not yolo:
+                            yolo = label
+                            yolo_conf = conf_str
+                    elif source == "color":
+                        if not colour:
+                            colour = color if color else label
+                            colour_conf = conf_str
+                    elif source == "qr":
+                        if not qr:
+                            qr = label
+                            qr_conf = "1.00"
+                    elif source == "ocr":
+                        if not ocr:
+                            ocr = label
+                            ocr_conf = conf_str
+                    elif source == "aruco":
+                        if not aruco:
+                            aruco = label
+                            aruco_conf = "1.00"
+                    elif source == "contour":
+                        if not contour:
+                            contour = label
+                            contour_conf = conf_str
+
+                # Get cell from first detection that has it
+                if not cell:
+                    cell = det_dicts[0].get("cell", "")
 
             count_summary = counter.update(det_dicts) if counts_enabled else {}
 
@@ -222,9 +272,6 @@ def main() -> int:
             if perf_log_interval > 0 and frame_counter % perf_log_interval == 0:
                 perf_summary = perf_monitor.summary()
                 payload["perf_summary"] = perf_summary
-                logger.info(f"[perf frame={frame_counter}] " +
-                            ", ".join(f"{k}={v*1000:.1f}ms"
-                                      for k, v in perf_summary.get("average_s", {}).items()))
                 perf_monitor.clear()
 
             if bool(out_cfg.get("write_outputs", True)) and (include_empty_frames or det_dicts):
@@ -234,9 +281,39 @@ def main() -> int:
                     if FLUSH_EVERY > 0 and len(output_history) >= FLUSH_EVERY:
                         export_output(output_format, out_cfg, output_history)
                         output_history.clear()
-                        logger.info(f"[output] flushed {FLUSH_EVERY} frames to disk")
                 else:
                     export_output(output_format, out_cfg, [payload])
+
+            # Dynamic terminal output system
+            terminal_cfg = cfg.get("terminal_output", [])
+            if terminal_cfg:
+                data = {
+                    "cell": cell,
+                    "yolo": yolo,
+                    "yolo_conf": yolo_conf,
+                    "colour": colour,
+                    "colour_conf": colour_conf,
+                    "qr": qr,
+                    "qr_conf": qr_conf,
+                    "ocr": ocr,
+                    "ocr_conf": ocr_conf,
+                    "aruco": aruco,
+                    "aruco_conf": aruco_conf,
+                    "contour": contour,
+                    "contour_conf": contour_conf,
+                }
+
+                for line in terminal_cfg:
+                    items = line.split()
+                    line_output = []
+                    for item in items:
+                        value = data.get(item, "")
+                        if value != "":
+                            line_output.append(value)
+                    
+                    # Only print if something was found for this line
+                    if line_output:
+                        print(" ".join(line_output))
 
             annotated = warped_frame
             if runtime_monitor is not None:
@@ -305,7 +382,6 @@ def main() -> int:
             if output_history:
                 export_output(output_format, out_cfg, output_history)
 
-    logger.info("shutdown complete")
     return 0
 
 
