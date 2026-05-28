@@ -64,7 +64,7 @@ detection:
   confidence: 0.60
 
   yolo:
-    enabled: true 
+    enabled: false
     weights_path: models/best.pt  # place your best.pt here; absolute path also accepted
     imgsz: 640
     device: null         # null lets ultralytics choose
@@ -74,9 +74,11 @@ detection:
   classical:
     enabled: true
     qr:
-      enabled: false
+      enabled: true
+    barcode:
+      enabled: true
     aruco:
-      enabled: false
+      enabled: true
       dictionary: "DICT_4X4_50"
       min_marker_area: 100
       corner_refinement: true
@@ -121,7 +123,7 @@ postprocess:
     threshold_value: 127  # for binary threshold if not using Canny
 
 mapping:
-  enabled: true
+  enabled: false
   grid:
     rows: 2
     cols: 2
@@ -161,6 +163,6 @@ visualization:
   draw_confidence: true
 
 terminal_output:
-  - "cell yolo yolo_conf"
-  #- "colour colour_conf"
+  - "barcode"
+  - ""
   #- "qr"

@@ -9,7 +9,7 @@ from ..types import Detection
 
 # STRONGER QR DETECTOR
 try:
-    from pyzbar.pyzbar import decode as pyzbar_decode
+    from pyzbar.pyzbar import decode as pyzbar_decode, ZBarSymbol
     PYZBAR_AVAILABLE = True
 except Exception:
     PYZBAR_AVAILABLE = False
@@ -79,7 +79,7 @@ class QRDetector:
 
         try:
 
-            decoded = pyzbar_decode(image)
+            decoded = pyzbar_decode(image, symbols=[ZBarSymbol.QRCODE])
 
             for obj in decoded:
 

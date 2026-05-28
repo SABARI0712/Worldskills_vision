@@ -18,6 +18,7 @@ class HybridDetector:
         self._yolo = None
         self._qr = None
         self._aruco = None
+        self._barcode = None
         self._color = None
         self._contour = None
         self._ocr = None
@@ -45,6 +46,7 @@ class HybridDetector:
             "yolo": [],
             "qr": [],
             "aruco": [],
+            "barcode": [],
             "ocr": [],
             "color": [],
             "contour": [],
@@ -64,6 +66,10 @@ class HybridDetector:
             if bool(((self._ccfg.get("qr") or {}).get("enabled", True))):
                 from .classical.qr_detector import QRDetector
                 self._qr = QRDetector()
+
+            if bool(((self._ccfg.get("barcode") or {}).get("enabled", False))):
+                from .classical.barcode_detector import BarcodeDetector
+                self._barcode = BarcodeDetector()
 
             if bool(((self._ccfg.get("aruco") or {}).get("enabled", False))):
                 from .classical.aruco_detector import ArucoDetector
@@ -108,18 +114,21 @@ class HybridDetector:
             # Under load, dynamically back off frequency of heavy detectors to preserve FPS
             yolo_mod = 6
             qr_mod = 4
+            barcode_mod = 4
             ocr_mod = 40
             contour_mod = 10
             color_mod = 10
         else:
             yolo_mod = 3
             qr_mod = 2
+            barcode_mod = 2
             ocr_mod = self._ocr_interval
             contour_mod = 5
             color_mod = 5
 
         run_aruco = True
         run_qr = (self._frame_index % qr_mod == 0)
+        run_barcode = (self._frame_index % barcode_mod == 0)
         run_yolo = (self._frame_index % yolo_mod == 0)
         run_ocr = (self._frame_index % ocr_mod == 0)
         run_contour = (self._frame_index % contour_mod == 0)
@@ -201,7 +210,37 @@ class HybridDetector:
                 qr_dets = self._detector_cache.get("qr", [])
         dets.extend(qr_dets)
 
-        # ─── Priority 4: OCR (runs asynchronously & ROI-based) ───
+        # ─── Priority 4: Barcode (runs scheduled & ROI-based) ───
+        barcode_dets = []
+        if self._barcode:
+            if run_barcode:
+                if candidate_rois:
+                    for roi_box in candidate_rois:
+                        x1, y1, x2, y2 = map(int, roi_box)
+                        h, w = frame_bgr.shape[:2]
+                        px1, py1 = max(0, x1 - 10), max(0, y1 - 10)
+                        px2, py2 = min(w, x2 + 10), min(h, y2 + 10)
+
+                        if px2 > px1 and py2 > py1:
+                            roi_crop = frame_bgr[py1:py2, px1:px2]
+                            roi_dets = self._barcode.detect(roi_crop)
+                            for rd in roi_dets:
+                                rx1, ry1, rx2, ry2 = rd.bbox_xyxy
+                                rd.bbox_xyxy = (rx1 + px1, ry1 + py1, rx2 + px1, ry2 + py1)
+                                barcode_dets.append(rd)
+
+                if not candidate_rois or (self._frame_index % 4 == 0):
+                    full_barcode_dets = self._barcode.detect(frame_bgr)
+                    for fd in full_barcode_dets:
+                        if not any(np.array_equal(fd.bbox_xyxy, b.bbox_xyxy) for b in barcode_dets):
+                            barcode_dets.append(fd)
+
+                self._detector_cache["barcode"] = barcode_dets
+            else:
+                barcode_dets = self._detector_cache.get("barcode", [])
+        dets.extend(barcode_dets)
+
+        # ─── Priority 5: OCR (runs asynchronously & ROI-based) ───
         ocr_dets = []
         if self._ocr is not None and self._ocr_executor is not None:
             # Harvest completed background results

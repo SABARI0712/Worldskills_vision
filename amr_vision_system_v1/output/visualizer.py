@@ -162,7 +162,7 @@ class Visualizer:
         # 3. OPTIMIZATION: IN-PLACE DETECTIONS (WITH Z-ORDER SORTING)
         # =========================================================
         # Sort so highest priority (QR/ArUco/OCR) are rendered last (on top of others)
-        priority_map = {"qr": 3, "aruco": 2, "ocr": 2, "yolo": 1, "color": 0, "contour": 0}
+        priority_map = {"qr": 3, "aruco": 2, "ocr": 2, "barcode": 2, "yolo": 1, "color": 0, "contour": 0}
         sorted_detections = sorted(
             detections,
             key=lambda d: priority_map.get(str(d.get("source", "")).lower(), 0)
@@ -186,6 +186,7 @@ class Visualizer:
                 "aruco": (0, 255, 0),
                 "qr": (0, 255, 255),
                 "ocr": (0, 215, 255),
+                "barcode": (255, 0, 255),
                 "color": (255, 255, 0),
                 "contour": (0, 165, 255),
             }

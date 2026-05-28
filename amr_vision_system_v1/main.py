@@ -144,6 +144,10 @@ def main() -> int:
             yolo_conf = ""
             colour = ""
             colour_conf = ""
+            color = ""
+            color_conf = ""
+            barcode = ""
+            barcode_conf = ""
             qr = ""
             qr_conf = ""
             ocr = ""
@@ -232,6 +236,13 @@ def main() -> int:
                         if not colour:
                             colour = color if color else label
                             colour_conf = conf_str
+                        if not color:
+                            color = color if color else label
+                            color_conf = conf_str
+                    elif source == "barcode":
+                        if not barcode:
+                            barcode = label
+                            barcode_conf = conf_str
                     elif source == "qr":
                         if not qr:
                             qr = label
@@ -293,6 +304,10 @@ def main() -> int:
                     "yolo_conf": yolo_conf,
                     "colour": colour,
                     "colour_conf": colour_conf,
+                    "color": color,
+                    "color_conf": color_conf,
+                    "barcode": barcode,
+                    "barcode_conf": barcode_conf,
                     "qr": qr,
                     "qr_conf": qr_conf,
                     "ocr": ocr,
