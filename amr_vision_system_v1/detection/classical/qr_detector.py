@@ -113,6 +113,28 @@ class QRDetector:
     # OPENCV DETECTION
     # =========================================
 
+    def _is_valid_qr_points(self, pts: np.ndarray, image: np.ndarray) -> bool:
+        pts = self._normalize_points(pts)
+
+        if pts.shape != (4, 2):
+            return False
+
+        if np.any(np.isnan(pts)) or np.any(np.isinf(pts)):
+            return False
+
+        area = cv2.contourArea(pts.astype(np.float32))
+        h, w = image.shape[:2]
+        min_area = max(100.0, 0.0005 * h * w)
+        if area < min_area:
+            return False
+
+        if np.any(pts[:, 0] < -0.1 * w) or np.any(pts[:, 0] > 1.1 * w):
+            return False
+        if np.any(pts[:, 1] < -0.1 * h) or np.any(pts[:, 1] > 1.1 * h):
+            return False
+
+        return True
+
     def _detect_opencv(
         self,
         image: np.ndarray,
@@ -126,8 +148,7 @@ class QRDetector:
 
             data, points, _ = self._detector.detectAndDecode(image)
 
-            if points is not None and len(points) > 0:
-
+            if data and points is not None and len(points) > 0 and self._is_valid_qr_points(points[0], image):
                 detections.append(
                     self._make_detection(
                         points[0],
