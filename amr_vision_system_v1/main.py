@@ -142,10 +142,14 @@ def main() -> int:
             cell = ""
             yolo = ""
             yolo_conf = ""
-            colour = ""
-            colour_conf = ""
-            color = ""
-            color_conf = ""
+            yolo_area = ""
+            yolo_width = ""
+            yolo_height = ""
+            colour = []
+            colour_conf = []
+            colour_area = []
+            color = []
+            color_conf = []
             barcode = ""
             barcode_conf = ""
             qr = ""
@@ -226,19 +230,35 @@ def main() -> int:
                         conf_str = f"{confidence:.2f}"
                     except (ValueError, TypeError):
                         conf_str = "0.00"
-                    color = det.get("color", "")
+                    det_color = det.get("color", "")
 
+                    meta = det.get("meta", {}) or {}
                     if source == "yolo":
                         if not yolo:
-                            yolo = label
-                            yolo_conf = conf_str
+                            yolo_label = str(label)
+                            if not yolo_label.startswith("yolo:"):
+                                yolo_label = f"yolo:{yolo_label}"
+                            yolo = yolo_label
+                            yolo_conf = f"yolo_conf:{conf_str}"
+                            if meta.get("area") is not None:
+                                yolo_area = f"yolo_area:{int(meta.get('area'))}"
+                            if meta.get("width") is not None:
+                                yolo_width = f"yolo_width:{int(meta.get('width'))}"
+                            if meta.get("height") is not None:
+                                yolo_height = f"yolo_height:{int(meta.get('height'))}"
                     elif source == "color":
-                        if not colour:
-                            colour = color if color else label
-                            colour_conf = conf_str
-                        if not color:
-                            color = color if color else label
-                            color_conf = conf_str
+                        detected_color = det_color if det_color else label
+                        # Some detections set `color` separately, but the label may already contain the value.
+                        if detected_color and detected_color not in colour:
+                            colour.append(detected_color)
+                        if detected_color and detected_color not in color:
+                            color.append(detected_color)
+                        if conf_str not in colour_conf:
+                            colour_conf.append(conf_str)
+                        if conf_str not in color_conf:
+                            color_conf.append(conf_str)
+                        if meta.get("mask_area") is not None:
+                            colour_area.append(str(int(meta.get("mask_area"))))
                     elif source == "barcode":
                         if not barcode:
                             barcode = label
@@ -259,6 +279,13 @@ def main() -> int:
                         if not contour:
                             contour = label
                             contour_conf = conf_str
+
+                # Convert any accumulated color fields to strings for terminal output
+                colour = ", ".join(colour) if isinstance(colour, list) else colour
+                color = ", ".join(color) if isinstance(color, list) else color
+                colour_conf = ", ".join(colour_conf) if isinstance(colour_conf, list) else colour_conf
+                color_conf = ", ".join(color_conf) if isinstance(color_conf, list) else color_conf
+                colour_area = ", ".join(colour_area) if isinstance(colour_area, list) else colour_area
 
                 # Get cell from first detection that has it
                 if not cell:
@@ -302,8 +329,12 @@ def main() -> int:
                     "cell": cell,
                     "yolo": yolo,
                     "yolo_conf": yolo_conf,
+                    "yolo_area": yolo_area,
+                    "yolo_width": yolo_width,
+                    "yolo_height": yolo_height,
                     "colour": colour,
                     "colour_conf": colour_conf,
+                    "colour_area": colour_area,
                     "color": color,
                     "color_conf": color_conf,
                     "barcode": barcode,
@@ -323,9 +354,13 @@ def main() -> int:
                     line_output = []
                     for item in items:
                         value = data.get(item, "")
-                        if value != "":
-                            line_output.append(value)
-                    
+                        if isinstance(value, list):
+                            joined = ", ".join(str(v) for v in value if v not in ("", None))
+                            if joined:
+                                line_output.append(joined)
+                        elif value not in ("", None):
+                            line_output.append(str(value))
+
                     # Only print if something was found for this line
                     if line_output:
                         print(" ".join(line_output))

@@ -59,13 +59,22 @@ class YOLODetector:
                 x2 = max(0, min(x2, w - 1))
                 y2 = max(0, min(y2, h - 1))
 
+                bbox_width = x2 - x1
+                bbox_height = y2 - y1
+                bbox_area = bbox_width * bbox_height
+
                 dets.append(
                     Detection(
                         label=str(label),
                         confidence=float(c),
                         bbox_xyxy=(x1, y1, x2, y2),
                         source="yolo",
-                        meta={"class_id": cls},
+                        meta={
+                            "class_id": cls,
+                            "area": bbox_area,
+                            "width": bbox_width,
+                            "height": bbox_height,
+                        },
                     )
                 )
 

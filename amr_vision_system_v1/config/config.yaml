@@ -64,7 +64,7 @@ detection:
   confidence: 0.60
 
   yolo:
-    enabled: false
+    enabled: true
     weights_path: models/best.pt  # place your best.pt here; absolute path also accepted
     imgsz: 640
     device: null         # null lets ultralytics choose
@@ -74,11 +74,11 @@ detection:
   classical:
     enabled: true
     qr:
-      enabled: true
+      enabled: false
     barcode:
-      enabled: true
+      enabled: false
     aruco:
-      enabled: true
+      enabled: false
       dictionary: "DICT_4X4_50"
       min_marker_area: 100
       corner_refinement: true
@@ -97,17 +97,12 @@ detection:
         yellow: [[25, 120, 120], [35, 255, 255]]
         black: [[0, 0, 0], [180, 255, 30]]
     contour:
-      enabled: false
+      enabled: true
       min_area: 2000
     ocr:
       enabled: false
-      # Tesseract returns 0-100 confidence; this value is normalised 0-1.
       min_confidence: 0.1
-      min_text_length: 1
-      min_area: 10
-      max_aspect_ratio: 20.0
-      tesseract_config: "--psm 11"
-      # Run OCR every N frames — pytesseract is slow; 15 = good balance (safe throttling)
+      min_text_length: 2
       interval: 15
 
 postprocess:
@@ -163,6 +158,11 @@ visualization:
   draw_confidence: true
 
 terminal_output:
-  - "barcode"
-  - ""
+  - "yolo"
+  - "yolo_conf"
+  - "yolo_area"
+ # - "yolo_width"
+  #- "yolo_height"
+  - "colour"
+  - "colour_area"
   #- "qr"
