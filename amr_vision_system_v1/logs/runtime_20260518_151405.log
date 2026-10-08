@@ -1,0 +1,5 @@
+2026-05-18 15:14:05,005 | INFO | log file: /home/user/amr_vision_system_v1/logs/runtime_20260518_151405.log
+2026-05-18 15:14:05,005 | INFO | config: /home/user/amr_vision_system_v1/config/config.yaml
+2026-05-18 15:14:06,592 | INFO | detector warmed up
+2026-05-18 15:14:06,592 | INFO | Initialized CSV output file with header: /home/user/amr_vision_system_v1/results/output.csv
+2026-05-18 15:14:06,666 | INFO | pipeline started (press ESC to quit)

@@ -1,0 +1,6 @@
+2026-05-21 13:15:55,535 | INFO | log file: /home/user/amr_vision_system_v1/logs/runtime_20260521_131555.log
+2026-05-21 13:15:55,535 | INFO | config: /home/user/amr_vision_system_v1/config/config.yaml
+2026-05-21 13:15:56,918 | INFO | detector warmed up
+2026-05-21 13:15:56,918 | INFO | Initialized CSV output file with header: /home/user/amr_vision_system_v1/results/output.csv
+2026-05-21 13:15:57,017 | INFO | ROS2 publishers successfully initialized.
+2026-05-21 13:15:57,145 | INFO | pipeline started (press ESC to quit)

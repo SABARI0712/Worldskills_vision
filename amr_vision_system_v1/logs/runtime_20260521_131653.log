@@ -1,0 +1,18 @@
+2026-05-21 13:16:53,364 | INFO | log file: /home/user/amr_vision_system_v1/logs/runtime_20260521_131653.log
+2026-05-21 13:16:53,364 | INFO | config: /home/user/amr_vision_system_v1/config/config.yaml
+2026-05-21 13:16:54,782 | INFO | detector warmed up
+2026-05-21 13:16:54,782 | INFO | Initialized CSV output file with header: /home/user/amr_vision_system_v1/results/output.csv
+2026-05-21 13:16:54,888 | INFO | ROS2 publishers successfully initialized.
+2026-05-21 13:16:55,014 | INFO | pipeline started (press ESC to quit)
+2026-05-21 13:16:59,698 | INFO | [perf frame=100] preprocess=0.0ms, perspective=0.0ms, detect=43.6ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-21 13:17:03,933 | INFO | [perf frame=200] preprocess=0.0ms, perspective=0.0ms, detect=39.0ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-21 13:17:08,299 | INFO | [perf frame=300] preprocess=0.0ms, perspective=0.0ms, detect=39.7ms, postprocess=0.2ms, fuse+track=0.0ms
+2026-05-21 13:17:12,647 | INFO | [perf frame=400] preprocess=0.0ms, perspective=0.0ms, detect=39.4ms, postprocess=0.2ms, fuse+track=0.0ms
+2026-05-21 13:17:17,431 | INFO | [perf frame=500] preprocess=0.0ms, perspective=0.0ms, detect=44.4ms, postprocess=0.1ms, fuse+track=0.0ms
+2026-05-21 13:17:21,749 | INFO | [perf frame=600] preprocess=0.0ms, perspective=0.0ms, detect=39.5ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-21 13:17:26,368 | INFO | [perf frame=700] preprocess=0.0ms, perspective=0.0ms, detect=42.5ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-21 13:17:31,774 | INFO | [perf frame=800] preprocess=0.0ms, perspective=0.0ms, detect=50.4ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-21 13:17:36,599 | INFO | [perf frame=900] preprocess=0.0ms, perspective=0.0ms, detect=45.0ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-21 13:17:41,049 | INFO | [perf frame=1000] preprocess=0.0ms, perspective=0.0ms, detect=41.3ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-21 13:17:45,332 | INFO | [perf frame=1100] preprocess=0.0ms, perspective=0.0ms, detect=39.5ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-21 13:17:49,489 | INFO | [perf frame=1200] preprocess=0.0ms, perspective=0.0ms, detect=38.2ms, postprocess=0.0ms, fuse+track=0.0ms

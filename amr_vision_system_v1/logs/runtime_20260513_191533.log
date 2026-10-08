@@ -1,0 +1,4 @@
+2026-05-13 19:15:33,795 | INFO | log file: /home/user/amr_vision_system_v1/logs/runtime_20260513_191533.log
+2026-05-13 19:15:33,795 | INFO | config: /home/user/amr_vision_system_v1/config/config.yaml
+2026-05-13 19:15:35,538 | INFO | detector warmed up
+2026-05-13 19:15:35,660 | INFO | pipeline started (press ESC to quit)

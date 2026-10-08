@@ -1,0 +1,10 @@
+2026-05-22 22:45:17,958 | INFO | log file: /home/user/amr_vision_system_v1/logs/runtime_20260522_224517.log
+2026-05-22 22:45:17,958 | INFO | config: /home/user/amr_vision_system_v1/config/config.yaml
+2026-05-22 22:45:18,043 | INFO | detector warmed up
+2026-05-22 22:45:18,044 | INFO | Initialized CSV output file with header: /home/user/amr_vision_system_v1/results/output.csv
+2026-05-22 22:45:18,164 | INFO | ROS2 publishers successfully initialized.
+2026-05-22 22:45:18,311 | INFO | pipeline started (press ESC to quit)
+2026-05-22 22:45:19,261 | INFO | [perf frame=100] preprocess=0.0ms, perspective=0.0ms, detect=1.9ms, postprocess=0.0ms, fuse+track=0.1ms
+2026-05-22 22:45:19,862 | INFO | [perf frame=200] preprocess=0.0ms, perspective=0.0ms, detect=1.8ms, postprocess=0.0ms, fuse+track=0.1ms
+2026-05-22 22:45:20,469 | INFO | [perf frame=300] preprocess=0.0ms, perspective=0.0ms, detect=1.8ms, postprocess=0.0ms, fuse+track=0.1ms
+2026-05-22 22:45:21,064 | INFO | [perf frame=400] preprocess=0.0ms, perspective=0.0ms, detect=1.7ms, postprocess=0.0ms, fuse+track=0.1ms

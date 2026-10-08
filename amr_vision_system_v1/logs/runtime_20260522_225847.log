@@ -1,0 +1,17 @@
+2026-05-22 22:58:47,771 | INFO | log file: /home/user/amr_vision_system_v1/logs/runtime_20260522_225847.log
+2026-05-22 22:58:47,772 | INFO | config: /home/user/amr_vision_system_v1/config/config.yaml
+2026-05-22 22:58:47,849 | INFO | detector warmed up
+2026-05-22 22:58:47,849 | INFO | Initialized CSV output file with header: /home/user/amr_vision_system_v1/results/output.csv
+2026-05-22 22:58:47,997 | INFO | ROS2 publishers successfully initialized.
+2026-05-22 22:58:48,146 | INFO | pipeline started (press ESC to quit)
+2026-05-22 22:58:49,096 | INFO | [perf frame=100] preprocess=0.0ms, perspective=0.0ms, detect=1.6ms, postprocess=0.0ms, fuse+track=0.1ms
+2026-05-22 22:58:49,719 | INFO | [perf frame=200] preprocess=0.0ms, perspective=0.0ms, detect=1.7ms, postprocess=0.0ms, fuse+track=0.1ms
+2026-05-22 22:58:50,312 | INFO | [perf frame=300] preprocess=0.0ms, perspective=0.0ms, detect=1.5ms, postprocess=0.0ms, fuse+track=0.1ms
+2026-05-22 22:58:50,920 | INFO | [perf frame=400] preprocess=0.0ms, perspective=0.0ms, detect=1.7ms, postprocess=0.0ms, fuse+track=0.1ms
+2026-05-22 22:58:51,553 | INFO | [perf frame=500] preprocess=0.0ms, perspective=0.0ms, detect=1.8ms, postprocess=0.0ms, fuse+track=0.1ms
+2026-05-22 22:58:52,178 | INFO | [perf frame=600] preprocess=0.0ms, perspective=0.0ms, detect=1.7ms, postprocess=0.0ms, fuse+track=0.1ms
+2026-05-22 22:58:52,835 | INFO | [perf frame=700] preprocess=0.0ms, perspective=0.0ms, detect=1.8ms, postprocess=0.0ms, fuse+track=0.1ms
+2026-05-22 22:58:53,502 | INFO | [perf frame=800] preprocess=0.0ms, perspective=0.0ms, detect=1.7ms, postprocess=0.0ms, fuse+track=0.1ms
+2026-05-22 22:58:54,146 | INFO | [perf frame=900] preprocess=0.0ms, perspective=0.0ms, detect=1.6ms, postprocess=0.0ms, fuse+track=0.1ms
+2026-05-22 22:58:54,801 | INFO | [perf frame=1000] preprocess=0.0ms, perspective=0.0ms, detect=1.7ms, postprocess=0.0ms, fuse+track=0.1ms
+2026-05-22 22:58:55,479 | INFO | [perf frame=1100] preprocess=0.0ms, perspective=0.0ms, detect=1.7ms, postprocess=0.0ms, fuse+track=0.1ms

@@ -1,0 +1,47 @@
+2026-05-22 23:53:18,070 | INFO | log file: /home/user/amr_vision_system_v1/logs/runtime_20260522_235318.log
+2026-05-22 23:53:18,070 | INFO | config: /home/user/amr_vision_system_v1/config/config.yaml
+2026-05-22 23:53:18,098 | INFO | detector warmed up
+2026-05-22 23:53:18,098 | INFO | Initialized CSV output file with header: /home/user/amr_vision_system_v1/results/output.csv
+2026-05-22 23:53:18,221 | INFO | ROS2 publishers successfully initialized.
+2026-05-22 23:53:18,367 | INFO | pipeline started (press ESC to quit)
+2026-05-22 23:53:19,222 | INFO | [perf frame=100] preprocess=0.0ms, perspective=0.0ms, detect=1.5ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-22 23:53:19,687 | INFO | [perf frame=200] preprocess=0.0ms, perspective=0.0ms, detect=1.5ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-22 23:53:20,174 | INFO | [perf frame=300] preprocess=0.0ms, perspective=0.0ms, detect=1.3ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-22 23:53:20,676 | INFO | [perf frame=400] preprocess=0.0ms, perspective=0.0ms, detect=1.1ms, postprocess=0.0ms, fuse+track=0.1ms
+2026-05-22 23:53:21,131 | INFO | [perf frame=500] preprocess=0.0ms, perspective=0.0ms, detect=1.2ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-22 23:53:21,588 | INFO | [perf frame=600] preprocess=0.0ms, perspective=0.0ms, detect=1.5ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-22 23:53:22,052 | INFO | [perf frame=700] preprocess=0.0ms, perspective=0.0ms, detect=1.5ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-22 23:53:22,525 | INFO | [perf frame=800] preprocess=0.0ms, perspective=0.0ms, detect=1.6ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-22 23:53:22,978 | INFO | [perf frame=900] preprocess=0.0ms, perspective=0.0ms, detect=1.4ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-22 23:53:23,431 | INFO | [perf frame=1000] preprocess=0.0ms, perspective=0.0ms, detect=1.4ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-22 23:53:23,880 | INFO | [perf frame=1100] preprocess=0.0ms, perspective=0.0ms, detect=1.5ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-22 23:53:24,310 | INFO | [perf frame=1200] preprocess=0.0ms, perspective=0.0ms, detect=1.2ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-22 23:53:24,753 | INFO | [perf frame=1300] preprocess=0.0ms, perspective=0.0ms, detect=1.3ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-22 23:53:25,167 | INFO | [perf frame=1400] preprocess=0.0ms, perspective=0.0ms, detect=1.1ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-22 23:53:25,622 | INFO | [perf frame=1500] preprocess=0.0ms, perspective=0.0ms, detect=1.3ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-22 23:53:26,080 | INFO | [perf frame=1600] preprocess=0.0ms, perspective=0.0ms, detect=1.4ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-22 23:53:26,516 | INFO | [perf frame=1700] preprocess=0.0ms, perspective=0.0ms, detect=1.2ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-22 23:53:26,935 | INFO | [perf frame=1800] preprocess=0.0ms, perspective=0.0ms, detect=1.1ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-22 23:53:27,390 | INFO | [perf frame=1900] preprocess=0.0ms, perspective=0.0ms, detect=1.4ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-22 23:53:27,865 | INFO | [perf frame=2000] preprocess=0.0ms, perspective=0.0ms, detect=1.5ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-22 23:53:28,334 | INFO | [perf frame=2100] preprocess=0.0ms, perspective=0.0ms, detect=1.5ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-22 23:53:28,800 | INFO | [perf frame=2200] preprocess=0.0ms, perspective=0.0ms, detect=1.5ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-22 23:53:29,258 | INFO | [perf frame=2300] preprocess=0.0ms, perspective=0.0ms, detect=1.4ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-22 23:53:29,741 | INFO | [perf frame=2400] preprocess=0.0ms, perspective=0.0ms, detect=1.4ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-22 23:53:30,246 | INFO | [perf frame=2500] preprocess=0.0ms, perspective=0.0ms, detect=1.1ms, postprocess=0.0ms, fuse+track=0.1ms
+2026-05-22 23:53:30,763 | INFO | [perf frame=2600] preprocess=0.0ms, perspective=0.0ms, detect=1.2ms, postprocess=0.0ms, fuse+track=0.1ms
+2026-05-22 23:53:31,267 | INFO | [perf frame=2700] preprocess=0.0ms, perspective=0.0ms, detect=1.1ms, postprocess=0.0ms, fuse+track=0.1ms
+2026-05-22 23:53:31,783 | INFO | [perf frame=2800] preprocess=0.0ms, perspective=0.0ms, detect=1.2ms, postprocess=0.0ms, fuse+track=0.1ms
+2026-05-22 23:53:32,309 | INFO | [perf frame=2900] preprocess=0.0ms, perspective=0.0ms, detect=1.2ms, postprocess=0.0ms, fuse+track=0.1ms
+2026-05-22 23:53:32,815 | INFO | [perf frame=3000] preprocess=0.0ms, perspective=0.0ms, detect=1.2ms, postprocess=0.0ms, fuse+track=0.1ms
+2026-05-22 23:53:33,329 | INFO | [perf frame=3100] preprocess=0.0ms, perspective=0.0ms, detect=1.2ms, postprocess=0.0ms, fuse+track=0.1ms
+2026-05-22 23:53:33,846 | INFO | [perf frame=3200] preprocess=0.0ms, perspective=0.0ms, detect=1.2ms, postprocess=0.1ms, fuse+track=0.1ms
+2026-05-22 23:53:34,348 | INFO | [perf frame=3300] preprocess=0.0ms, perspective=0.0ms, detect=1.2ms, postprocess=0.0ms, fuse+track=0.1ms
+2026-05-22 23:53:34,841 | INFO | [perf frame=3400] preprocess=0.0ms, perspective=0.0ms, detect=1.1ms, postprocess=0.0ms, fuse+track=0.1ms
+2026-05-22 23:53:35,333 | INFO | [perf frame=3500] preprocess=0.0ms, perspective=0.0ms, detect=1.1ms, postprocess=0.0ms, fuse+track=0.1ms
+2026-05-22 23:53:35,860 | INFO | [perf frame=3600] preprocess=0.0ms, perspective=0.0ms, detect=1.3ms, postprocess=0.0ms, fuse+track=0.1ms
+2026-05-22 23:53:36,440 | INFO | [perf frame=3700] preprocess=0.0ms, perspective=0.0ms, detect=1.4ms, postprocess=0.0ms, fuse+track=0.1ms
+2026-05-22 23:53:37,001 | INFO | [perf frame=3800] preprocess=0.0ms, perspective=0.0ms, detect=1.4ms, postprocess=0.0ms, fuse+track=0.1ms
+2026-05-22 23:53:37,472 | INFO | [perf frame=3900] preprocess=0.0ms, perspective=0.0ms, detect=1.3ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-22 23:53:37,924 | INFO | [perf frame=4000] preprocess=0.0ms, perspective=0.0ms, detect=1.4ms, postprocess=0.0ms, fuse+track=0.0ms
+2026-05-22 23:53:38,384 | INFO | [perf frame=4100] preprocess=0.0ms, perspective=0.0ms, detect=1.5ms, postprocess=0.0ms, fuse+track=0.0ms

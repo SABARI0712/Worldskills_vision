@@ -1,0 +1,7 @@
+2026-05-18 13:15:41,120 | INFO | log file: /home/user/amr_vision_system_v1/logs/runtime_20260518_131541.log
+2026-05-18 13:15:41,120 | INFO | config: /home/user/amr_vision_system_v1/config/config.yaml
+2026-05-18 13:15:43,158 | INFO | detector warmed up
+2026-05-18 13:15:43,278 | INFO | pipeline started (press ESC to quit)
+2026-05-18 13:15:55,536 | INFO | [perf frame=100] preprocess=0.0ms, perspective=0.0ms, detect=115.9ms, postprocess=0.4ms, fuse+track=0.1ms
+2026-05-18 13:16:08,275 | INFO | [perf frame=200] preprocess=0.0ms, perspective=0.0ms, detect=120.8ms, postprocess=0.3ms, fuse+track=0.1ms
+2026-05-18 13:16:21,289 | INFO | [perf frame=300] preprocess=0.0ms, perspective=0.0ms, detect=123.1ms, postprocess=0.3ms, fuse+track=0.1ms

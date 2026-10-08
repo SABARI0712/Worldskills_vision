@@ -1,0 +1,7 @@
+2026-05-19 17:32:26,619 | INFO | log file: /home/user/amr_vision_system_v1/logs/runtime_20260519_173226.log
+2026-05-19 17:32:26,619 | INFO | config: /home/user/amr_vision_system_v1/config/config.yaml
+2026-05-19 17:32:26,787 | INFO | MJPEG stream opened: http://vmx.local:5000/video
+2026-05-19 17:32:28,390 | INFO | detector warmed up
+2026-05-19 17:32:28,390 | INFO | Initialized CSV output file with header: /home/user/amr_vision_system_v1/results/output.csv
+2026-05-19 17:32:28,501 | INFO | ROS2 publishers successfully initialized.
+2026-05-19 17:32:28,644 | INFO | pipeline started (press ESC to quit)
