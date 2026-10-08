@@ -1,0 +1,160 @@
+
+app:
+  name: amr_vision_system_v1
+  log_dir: logs
+  results_dir: results
+
+camera:
+  source: usb    # usb | ros | mjpeg
+  threaded_reader: true  # keep camera acquisition alive in the background
+  threaded_poll_interval_s: 0.020
+  usb:
+    index: 2
+    width: null          # set e.g. 640
+    height: null         # set e.g. 480
+    fps: null
+    reconnect: false
+    reconnect_wait_s: 0.5
+  ros:
+    topic: /camera/raw_image
+    encoding: bgr8
+    spin_timeout_s: 0.01
+  mjpeg:
+    url: "http://vmx.local:5000/video"
+    reconnect: true
+    reconnect_wait_s: 1.0
+
+mjpeg_stream:
+  enabled: true
+  url: "http://vmx.local:5000/video"
+  window_name: "Localhost MJPEG Stream"
+
+preprocess:
+  # NOTE: this gates ALL preprocess sub-settings below
+  enabled: false
+  resize:
+    enabled: true
+    width: 640
+    height: 480
+    keep_aspect: false
+  clahe:
+    enabled: true
+    clip_limit: 2.0
+    tile_grid_size: [8, 8]
+  denoise:
+    enabled: false
+    h: 5
+    h_color: 5
+    template_window_size: 7
+    search_window_size: 21
+
+perspective:
+  enabled: false
+  output_size:
+    width: 800
+    height: 800
+  points:
+    top_left: [100, 120]
+    top_right: [540, 110]
+    bottom_right: [560, 420]
+    bottom_left: [90, 430]
+
+detection:
+  mode: hybrid           # yolo | classical | hybrid
+  confidence: 0.30
+
+  yolo:
+    enabled: false
+    weights_path: models/best.pt  # place your best.pt here; absolute path also accepted
+    imgsz: 640
+    device: null         # null lets ultralytics choose
+    iou: 0.45
+    max_det: 100
+
+  classical:
+    enabled: true
+    qr:
+      enabled: false
+    barcode:
+      enabled: false
+    aruco:
+      enabled: true
+      dictionary: "DICT_4X4_50"
+      min_marker_area: 100
+      corner_refinement: true
+    color:
+      enabled: false
+      min_area: 10000
+      min_aspect_ratio: 0.2
+      max_aspect_ratio: 5.0
+      hsv_ranges:
+        # Tuned HSV ranges from opencv/colour hsv,area/3_colour_hsv.py
+        red:
+          - [[0, 120, 70], [10, 255, 255]]
+          - [[170, 120, 70], [180, 255, 255]]
+        green: [[36, 50, 70], [89, 255, 255]]
+        blue: [[94, 80, 2], [126, 255, 255]]
+        orange: [[10, 120, 80], [25, 255, 255]]
+        yellow: [[25, 120, 120], [35, 255, 255]]
+        black: [[0, 0, 0], [180, 255, 30]]
+    contour:
+      enabled: false
+      min_area: 2000
+    ocr:
+      enabled: false
+      min_confidence: 0.1
+      min_text_length: 2
+      interval: 15
+
+postprocess:
+  # NOTE: this gates ALL postprocess sub-settings below
+  enabled: false
+  min_confidence: 0.5
+  pose:
+    enabled: true
+    min_area: 1000  # minimum contour area for pose estimation
+    use_canny: true  # use Canny edge detection, else threshold
+    canny_threshold1: 50
+    canny_threshold2: 150
+    threshold_value: 127  # for binary threshold if not using Canny
+
+mapping:
+  enabled: false
+  grid:
+    rows: 2
+    cols: 2
+    origin: top_left      # top_left
+    labels:
+      cols: AB
+      rows: "87"
+
+output:
+  format: csv  # json | csv
+  write_outputs: true
+  # append=true → JSON Lines (one object/frame written immediately, no RAM build-up)
+  # append=false → full JSON list written on exit (risks OOM on long sessions)
+  append: true
+  include_empty_frames: false
+  #qshen you want per-frame annotated image writes
+  # flush_every: only used when append=false; write buffer to disk every N frames
+  flush_every: 500
+  # Print per-stage timing to log every N frames (0 = disabled)
+  perf_log_interval: 100
+
+counts:
+  enabled: false
+  include_in_output: true
+  draw_on_screen: true
+  display_position: [10, 30]
+
+visualization:
+  enabled: true
+  show_window: true
+  window_name: AMR Vision V1
+  draw_grid: true
+  draw_labels: true
+  draw_confidence: true
+
+terminal_output:
+    - "aruco"
+    - "ocr"

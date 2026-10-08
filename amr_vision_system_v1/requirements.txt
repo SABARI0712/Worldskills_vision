@@ -1,0 +1,12 @@
+opencv-python>=4.8
+numpy>=1.24
+PyYAML>=6.0
+
+# Optional (only needed for ROS camera source)
+# rclpy (installed via ROS2, not pip on most systems)
+# cv_bridge (installed via ROS2, not pip on most systems)
+
+# Optional (only needed for YOLO detection)
+ultralytics>=8.0
+# Optional (only needed for OCR detection)
+pytesseract>=0.3.10
