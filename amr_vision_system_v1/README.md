@@ -1,12 +1,26 @@
-## AMR Vision System V1 (stable modular pipeline)
+# AMR Vision System V1
 
-This folder is a **new, separate** implementation of your Version 1 perception stack:
+Stable, modular real-time perception pipeline for an Autonomous Mobile Robot (AMR).
 
 ```text
-camera → preprocess → detect → export → visualize
+camera → preprocess → perspective → detect → color classify
+       → postprocess → fuse → track → pose → temporal filter
+       → board map → world model → export / visualize / ROS
 ```
 
-It is designed to be **stable and modular** and includes tracking, pose estimation, fusion, and visualization components.
+---
+
+## Features
+
+- **Camera sources:** USB (V4L2), ROS2 topic, MJPEG HTTP stream
+- **Detection modes:** `yolo` | `classical` | `hybrid`
+- **Classical detectors:** ArUco, QR, barcode, OCR, HSV color, contour
+- **ML detector:** YOLO (Ultralytics) with custom weights
+- **Fusion:** IoU-based duplicate resolution with source priority  
+  `aruco > qr > ocr > yolo > color > contour`
+- **Tracking:** Centroid tracker + temporal smoothing + velocity
+- **Spatial:** Optional perspective warp and grid/board cell mapping
+- **Outputs:** CSV / JSON, annotated frames, terminal lines, ROS2 topics
 
 ---
 
@@ -14,53 +28,33 @@ It is designed to be **stable and modular** and includes tracking, pose estimati
 
 ```text
 amr_vision_system_v1/
-  main.py
+  main.py                 # Entry point / frame loop
   requirements.txt
   config/
-    config.yaml
+    config.yaml           # All runtime settings
     loader.py
-  camera/
-    camera_handler.py
-    usb_camera.py
-    ros_camera.py
-    utils.py
-  preprocessing/
-    image_preprocessor.py
+  camera/                 # USB, ROS, MJPEG (+ threaded reader)
+  preprocessing/          # Resize, CLAHE, denoise
   detection/
-    hybrid_detector.py
+    hybrid_detector.py    # Orchestrator + scheduling
     types.py
-    classical/
-      qr_detector.py
-      color_detector.py
-      contour_detector.py
-    ml/
-      model_loader.py
-      yolo_detector.py
-  postprocessing/
-    post_processor.py
-    board_mapper.py
-  output/
-    formatter.py
-    json_formatter.py
-    csv_formatter.py
-    visualizer.py
-  utils/
-    logger.py
-    helpers.py
-    validators.py
-  models/
-    best.pt   (put your weights here)
-  results/
-    output.json / output.csv / annotated.jpg (auto-written)
-  logs/
-    runtime_*.log
+    classical/            # ArUco, QR, barcode, OCR, color, contour
+    ml/                   # YOLO
+  fusion/                 # Duplicate resolver
+  tracking/               # Centroid tracker, temporal filter
+  postprocessing/         # Post-filter, pose, board map, perspective
+  perception/             # Color classifier, world model, occupancy, counter
+  output/                 # CSV/JSON, visualizer, ROS publisher
+  utils/                  # Logger, helpers, validators, perf monitor
+  models/                 # Place best.pt here
+  results/                # output.csv / output.json / annotated.jpg
+  logs/                   # runtime_*.log
+  tests/
 ```
 
 ---
 
 ## Install
-
-From the parent directory:
 
 ```bash
 cd amr_vision_system_v1
@@ -69,35 +63,53 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Notes:
-- **USB-only** needs just OpenCV/Numpy/YAML.
-- **YOLO** needs `ultralytics` and a weights file (default `models/best.pt`).
-- **ROS camera** needs a working ROS2 install with `rclpy` and `cv_bridge` in your environment.
+| Use case | Extra needs |
+|----------|-------------|
+| USB camera only | OpenCV, NumPy, PyYAML (base `requirements.txt`) |
+| YOLO | `ultralytics` + weights at `models/best.pt` |
+| OCR | `pytesseract` + system Tesseract |
+| ROS camera / publish | ROS2 with `rclpy` and `cv_bridge` |
 
 ---
 
 ## Configure
 
-Edit `config/config.yaml`. Key settings:
+Edit [`config/config.yaml`](./config/config.yaml).
 
-- `camera.source`: `usb` or `ros`
-- `preprocess.*`: resize/CLAHE/denoise toggles
-- `detection.mode`: `yolo` | `classical` | `hybrid`
-- `detection.confidence`: global confidence threshold for YOLO
-- `output.format`: `json` or `csv`
-- `visualization.show_window`: open a live OpenCV window
+### Important keys
+
+| Key | Options / meaning |
+|-----|-------------------|
+| `camera.source` | `usb` \| `ros` \| `mjpeg` |
+| `preprocess.enabled` | Resize / CLAHE / denoise |
+| `perspective.enabled` | Top-down warp |
+| `detection.mode` | `yolo` \| `classical` \| `hybrid` |
+| `detection.confidence` | Global confidence floor |
+| `detection.yolo.enabled` | Toggle YOLO |
+| `detection.classical.*` | Toggle each classical detector |
+| `mapping.enabled` | Pixel → board cell (e.g. `A8`) |
+| `output.format` | `json` \| `csv` |
+| `output.append` | Per-frame append (recommended) |
+| `visualization.show_window` | Live OpenCV window |
+| `terminal_output` | Which fields to print each frame |
 
 ### YOLO weights
-
-Set:
 
 ```yaml
 detection:
   yolo:
+    enabled: true
     weights_path: models/best.pt
 ```
 
-Place your file at `amr_vision_system_v1/models/best.pt`.
+Place weights at `models/best.pt` (absolute paths also work).
+
+### Optional config path override
+
+```bash
+export AMR_VISION_CONFIG=/path/to/custom.yaml
+python3 main.py
+```
 
 ---
 
@@ -108,25 +120,49 @@ cd amr_vision_system_v1
 python3 main.py
 ```
 
-Stop:
-- Press **ESC** in the visualization window, or Ctrl+C in terminal.
+Stop with **ESC** in the visualization window, or `Ctrl+C` in the terminal.
 
 ---
 
-## Outputs (Version 1)
+## Pipeline overview
 
-Every frame, the pipeline produces:
+1. **Config** — `config/loader.py` loads YAML for the whole system.
+2. **Camera** — `camera/camera_handler.py` creates USB / ROS / MJPEG (optional threaded reader).
+3. **Preprocess** — optional resize, CLAHE (LAB), denoise.
+4. **Perspective** — optional 4-point warp to a top-down view.
+5. **Detect** — `HybridDetector` runs enabled detectors on a schedule:
+   - ArUco every frame
+   - YOLO / QR / barcode / OCR / color / contour on intervals
+   - Adaptive backoff when detection is slow (> ~80 ms)
+   - ROI crops from YOLO/ArUco for QR, barcode, OCR
+   - Cache carry-over on skipped frames for smooth tracking
+6. **Color classify** — sample color inside boxes for YOLO / QR / ArUco / contour.
+7. **Postprocess** — confidence filter + bbox clamp (optional).
+8. **Fuse** — resolve overlaps; prefer higher-priority sources.
+9. **Track** — persistent IDs, centroids, pixel velocity.
+10. **Pose** — orientation from contour moments (optional).
+11. **Temporal filter** — smooth boxes / confidence / angle.
+12. **Map** — assign board cells from centroid (optional).
+13. **World model** — live object state, occupancy, counts, scene memory.
+14. **Export / view** — CSV or JSON, overlay window, terminal lines, ROS topics.
 
-- `results/output.json` (if `output.format: json`)
-- `results/output.csv` (if `output.format: csv`)
-- `results/annotated.jpg` (latest annotated frame)
-- `logs/runtime_*.log`
+---
 
-### Output schema (JSON)
+## Outputs
+
+| Artifact | Location |
+|----------|----------|
+| JSON | `results/output.json` (when `output.format: json`) |
+| CSV | `results/output.csv` (when `output.format: csv`) |
+| Annotated frame | `results/annotated.jpg` (if `save_image: true`) |
+| Logs | `logs/runtime_*.log` |
+
+### JSON frame schema (example)
 
 ```json
 {
   "timestamp_ms": 1234567890,
+  "frame": 42,
   "image": { "width": 640, "height": 480 },
   "detections": [
     {
@@ -134,88 +170,37 @@ Every frame, the pipeline produces:
       "confidence": 0.82,
       "bbox_xyxy": [10, 20, 300, 220],
       "source": "yolo",
-      "meta": { "class_id": 0 },
+      "meta": { "class_id": 0, "velocity": [0.0, 0.0] },
+      "color": "red",
+      "id": 1,
+      "centroid": [155, 120],
       "cell": "D4"
     }
-  ]
+  ],
+  "detection_count": 1,
+  "occupancy": {},
+  "world_counts": { "box": 1 }
 }
 ```
 
 Notes:
-- `cell` is only added when `mapping.enabled: true`.
-- Classical detectors use labels like `qr:<data>` or `color:<range_name>`.
+- `cell` appears only when `mapping.enabled: true`.
+- Classical labels look like `qr:<data>`, `aruco:<id>`, `color:<name>`.
 
 ---
 
-## How the pipeline is wired (Version 1)
+## Tests
 
-### 1) Config
-- `config/loader.py` loads YAML into a dictionary used system-wide.
-
-### 2) Camera
-- `camera/camera_handler.py` selects and manages:
-  - `USBCamera` (`camera/usb_camera.py`) with Linux V4L2 backend, auto-reconnect, and custom Orbbec Gemini E parameter optimizations (autofocus disable, manual focus, exposure/gain tuning).
-  - `ROSCamera` (`camera/ros_camera.py`) for ROS2 topic integration with `cv_bridge`.
-
-### 3) Preprocess
-- `preprocessing/image_preprocessor.py` applies optional/configurable steps:
-  - Spatial resizing (maintaining aspect ratio or forced dimensions).
-  - CLAHE (Contrast Limited Adaptive Histogram Equalization) in LAB colorspace.
-  - Non-local means denoising to clean image noise.
-
-### 4) Detect
-- `detection/hybrid_detector.py` orchestrates object detection:
-  - `mode: yolo` runs `detection/ml/yolo_detector.py` with custom weights.
-  - `mode: classical` runs QR code, ArUco, OCR, and color detectors concurrently.
-  - `mode: hybrid` merges semantic deep learning and classical detections, leveraging semantic protection regions to prevent overlap.
-
-### 5) Fusion & Resolution
-- `fusion/detection_fuser.py` and `DuplicateResolver` (`fusion/duplicate_resolver.py`):
-  - Resolves overlapping bounding boxes via IoU thresholds.
-  - Prioritizes highly reliable sensors: `aruco` > `qr` > `ocr` > `yolo` > `color` > `contour`.
-  - Intelligently filters and preserves specific color labels over generic background components.
-
-### 6) Tracking & Filtering
-- `tracking/centroid_tracker.py` (`CentroidTracker`):
-  - Associates bounding boxes across frames using centroid Euclidean distances.
-  - Tracks ID persistence with custom disappearing limits.
-  - Computes real-time 2D pixel velocities using frame timestamps.
-- `tracking/temporal_filter.py` (`TemporalFilter`):
-  - Exponentially smooths bounding boxes and confidence scores over time.
-  - Blend orientations (angles) on a 180-degree circular domain to prevent flip artifacts.
-  - Integrates with tracker liveness to persist states smoothly through transient frames.
-
-### 7) Postprocess & Pose Estimation
-- `postprocessing/post_processor.py` manages coordinate clamping and confidence sorting.
-- `postprocessing/pose_estimator.py` (`PoseEstimator`):
-  - Uses contour moments to compute 2D/3D physical orientations and centroids.
-
-### 8) Mapping & Spatial Analytics
-- `postprocessing/board_mapper.py` (`BoardMapper`):
-  - Maps 2D pixel coordinates to discrete board grid coordinates (e.g. A1, D5) based on a configurable matrix.
-- `perception/occupancy_grid.py` (`OccupancyGrid`):
-  - Translates active tracker states into occupancy maps.
-- `perception/counter.py` (`ObjectCounter`):
-  - Compiles structured frame-by-frame summaries of class, color, and cell distributions.
-- `perception/world_model.py` (`WorldModel`) & `SceneMemory` (`perception/scene_memory.py`):
-  - WorldModel maintains global tracking states, history buffers, and latest known positions.
-  - SceneMemory maintains a historical window of perception frames for retrospective reasoning.
-
-### 9) Export
-- `output/formatter.py` routing:
-  - `output/json_formatter.py`: exports to a standard JSON array iteratively with `O(1)` back-seek and truncate logic for memory safety and format correctness.
-  - `output/csv_formatter.py`: exports frame statistics incrementally in CSV format.
-
-### 10) Visualize
-- `output/visualizer.py`:
-  - Renders colored bounding boxes, centroids, tracking IDs, and custom pose orientation vectors.
-  - Renders board overlays, cell grids, and text summaries.
+```bash
+cd amr_vision_system_v1
+pytest
+```
 
 ---
 
-## Extension points (keep V1 stable)
-When you extend later, do it by adding modules, not by mixing responsibilities:
-- Add new classical detectors in `detection/classical/`
-- Add additional postprocessing rules in `postprocessing/`
-- Add new exporters in `output/` and route via `output/formatter.py`
+## Extending (keep V1 modular)
 
+- New classical detectors → `detection/classical/`
+- New post rules → `postprocessing/`
+- New exporters → `output/` and wire through `output/formatter.py`
+- Prefer adding modules over mixing responsibilities into `main.py`
